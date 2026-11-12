@@ -1,0 +1,110 @@
+# ~/.zshrc: interactive shells.
+# Machine-specific settings (work proxy, kube contexts, etc.) go in ~/.zshrc.local (untracked).
+# Secrets go in ~/.zsh_secrets.gpg (untracked, per machine).
+
+# --- Options (replaces Prezto's environment/history/directory/utility modules) ---
+HISTFILE=~/.zhistory
+HISTSIZE=100000
+SAVEHIST=100000
+setopt extended_history share_history hist_expire_dups_first hist_ignore_dups \
+       hist_ignore_space hist_find_no_dups hist_verify hist_beep
+setopt auto_cd auto_pushd pushd_ignore_dups pushd_silent pushd_to_home cdable_vars
+setopt extended_glob interactive_comments long_list_jobs notify correct noclobber
+bindkey -e
+
+# --- Plugins (antidote; installer clones it to ~/.antidote) ---
+ZSH_AUTOSUGGEST_STRATEGY=(completion)
+if [[ -r ~/.antidote/antidote.zsh ]]; then
+  source ~/.antidote/antidote.zsh
+  antidote load ~/.zsh_plugins.txt
+fi
+if (( $+widgets[history-substring-search-up] )); then
+  bindkey '^[[A' history-substring-search-up
+  bindkey '^[OA' history-substring-search-up
+  bindkey '^[[B' history-substring-search-down
+  bindkey '^[OB' history-substring-search-down
+fi
+
+# --- Completion (after antidote so zsh-completions is on fpath) ---
+mkdir -p ~/.cache/zsh
+autoload -Uz compinit && compinit -d ~/.cache/zsh/zcompdump
+autoload -U +X bashcompinit && bashcompinit
+(( $+commands[dircolors] )) && eval "$(dircolors -b)"
+zstyle ':completion:*' menu select
+zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' 'r:|[._-]=* r:|=*' 'l:|=* r:|=*'
+zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
+zstyle ':completion:*' group-name ''
+zstyle ':completion:*:descriptions' format '%F{yellow}-- %d --%f'
+zstyle ':completion::complete:*' use-cache on
+zstyle ':completion::complete:*' cache-path ~/.cache/zsh/zcompcache
+
+# --- ssh-agent on a shared socket (was Prezto's ssh module); reuse a forwarded agent ---
+if [[ ! -S "$SSH_AUTH_SOCK" ]] && (( $+commands[ssh-agent] )); then
+  export SSH_AUTH_SOCK=~/.cache/ssh-agent.sock
+  ssh-add -l >/dev/null 2>&1
+  if (( $? == 2 )); then
+    command rm -f "$SSH_AUTH_SOCK"
+    eval "$(ssh-agent -a "$SSH_AUTH_SOCK")" >/dev/null
+  fi
+  ssh-add -l >/dev/null 2>&1 || ssh-add 2>/dev/null
+fi
+
+# --- Aliases ---
+# Prezto utility aliases kept: prompt before overwriting, short ls forms
+alias rm='nocorrect rm -i'
+alias cp='nocorrect cp -i'
+alias mv='nocorrect mv -i'
+alias ln='nocorrect ln -i'
+alias mkdir='nocorrect mkdir -p'
+alias man='nocorrect man'
+alias _=sudo
+alias l='ls -1A'
+alias ll='ls -lh'
+alias la='ll -A'
+alias d='dirs -v'
+
+ALIASFILE=~/.zsh_aliases
+[[ -r $ALIASFILE ]] && source $ALIASFILE
+function add_alias() {
+  if [[ -z $1 || -z $2 || $# -gt 2 ]]; then
+    echo usage:
+    echo "\t\$$0 ll 'ls -l'"
+  else
+    echo "alias $1='$2'" >> $ALIASFILE
+    echo "alias ADDED to $ALIASFILE"
+  fi
+}
+
+# --- Tool completions ---
+(( $+commands[terraform] )) && complete -o nospace -C "$commands[terraform]" terraform
+(( $+commands[kubectl] )) && source <(kubectl completion zsh)
+(( $+commands[helm] )) && source <(helm completion zsh)
+
+# --- Python: pyenv, virtualenvwrapper, uv ---
+if (( $+commands[pyenv] )); then
+  eval "$(pyenv init -)"
+  if pyenv commands | grep -q '^virtualenv-init$'; then
+    export PYENV_VIRTUALENVWRAPPER_PREFER_PYVENV=true
+    eval "$(pyenv virtualenv-init -)"
+  fi
+fi
+export VIRTUALENVWRAPPER_PYTHON=/usr/bin/python3
+export WORKON_HOME=$HOME/Software/.virtualenvs
+export PROJECT_HOME=$HOME/Software/git
+[[ -r /usr/share/virtualenvwrapper/virtualenvwrapper.sh ]] && source /usr/share/virtualenvwrapper/virtualenvwrapper.sh
+export UV_PROJECT_ENVIRONMENT=$VIRTUAL_ENV
+
+# --- Node: nvm ---
+export NVM_DIR=$HOME/.nvm
+[[ -s $NVM_DIR/nvm.sh ]] && source $NVM_DIR/nvm.sh
+[[ -s $NVM_DIR/bash_completion ]] && source $NVM_DIR/bash_completion
+
+# --- Secrets and machine-specific config (both untracked) ---
+if [[ -f ~/.zsh_secrets.gpg ]]; then
+  gpg --quiet --decrypt ~/.zsh_secrets.gpg 2>/dev/null | source /dev/stdin
+fi
+[[ -s ~/.zshrc.local ]] && source ~/.zshrc.local
+
+# --- Prompt and cd ---
+(( $+commands[starship] )) && eval "$(starship init zsh)"
+(( $+commands[zoxide] )) && eval "$(zoxide init zsh)"

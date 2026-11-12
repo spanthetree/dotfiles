@@ -1,0 +1,17 @@
+#!/bin/sh
+# Drives the active-tab pulse: tmux status-interval can't go below 1s, so
+# toggle @pulse-on and redraw every attached client ourselves.
+# Started from profile.tmux; exits when the tmux server goes away.
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/byobu-tab-pulse.lock"
+flock -n 9 || exit 0
+
+on=0
+while clients=$(tmux list-clients -F '#{client_name}' 2>/dev/null); do
+    on=$((1 - on))
+    set -- set -g @pulse-on "$on"
+    for c in $clients; do
+        set -- "$@" ';' refresh-client -S -t "$c"
+    done
+    tmux "$@" 2>/dev/null
+    sleep 0.6
+done

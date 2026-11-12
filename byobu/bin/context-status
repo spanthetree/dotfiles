@@ -1,0 +1,19 @@
+#!/bin/sh
+# Renders starship-status.toml modules for a directory as tmux styles.
+# Usage: context-status <dir>   (called from profile.tmux with the active pane's path)
+cd "${1:-$HOME}" 2>/dev/null || exit 0
+# tmux server env lacks the shell's PATH; add pyenv shims and go so versions resolve
+PATH="$HOME/.pyenv/shims:$HOME/go/bin:/usr/local/go/bin:$PATH"
+STARSHIP_SHELL= STARSHIP_CONFIG="$HOME/.config/starship-status.toml" starship prompt 2>/dev/null |
+perl -CS -pe '
+  s{\e\[([\d;]*)m}{
+    my @c = split /;/, ($1 eq "" ? "0" : $1); my @s;
+    while (@c) { my $x = shift @c;
+      if ($x == 0) { push @s, "default" }
+      elsif ($x == 1) { push @s, "bold" }
+      elsif ($x == 22) { push @s, "nobold" }
+      elsif ($x == 39) { push @s, "fg=default" }
+      elsif ($x == 38 && $c[0] == 2) { shift @c; push @s, sprintf("fg=#%02x%02x%02x", splice(@c,0,3)) }
+    }
+    @s ? "#[" . join(",", @s) . "]" : ""
+  }ge; s/\n//g'

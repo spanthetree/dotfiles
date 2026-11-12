@@ -1,0 +1,4 @@
+BYOBU_DARK="\#111018"
+BYOBU_LIGHT="\#ffffff"
+BYOBU_ACCENT="\#b893ce"
+BYOBU_HIGHLIGHT="\#ff7edb"

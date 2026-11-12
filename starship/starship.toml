@@ -1,0 +1,67 @@
+# ============================================================
+# STARSHIP: SYNTHWAVE '84
+# Prompt shows user@host, cwd and active virtualenv only.
+# Git/python/k8s/etc. are in the byobu status bar: starship-status.toml.
+# ============================================================
+
+add_newline = true
+command_timeout = 1200
+
+palette = "synthwave84"
+
+format = """
+[╭─](bold purple)\
+$username\
+$hostname\
+$directory\
+$python
+[╰─](bold purple)$character
+"""
+
+[palettes.synthwave84]
+fg = "#ffffff"
+pink = "#ff7edb"
+purple = "#b893ce"
+cyan = "#36f9f6"
+green = "#72f1b8"
+orange = "#fede5d"
+red = "#fe4450"
+muted = "#a99bbd"
+
+# USER / HOST
+
+[username]
+show_always = true
+style_user = "bold pink"
+style_root = "bold red"
+format = "[$user]($style)"
+
+[hostname]
+ssh_only = false
+style = "bold purple"
+format = "[@$hostname ]($style)"
+
+# DIRECTORY
+
+[directory]
+style = "bold cyan"
+format = "[󰉋 $path ]($style)"
+truncation_length = 3
+truncate_to_repo = true
+
+# VIRTUALENV: no file detection, so this only shows when a venv is active
+
+[python]
+symbol = "󰌠 "
+style = "green"
+detect_extensions = []
+detect_files = []
+detect_folders = []
+format = '[$symbol$virtualenv ]($style)'
+
+# PROMPT CHARACTER
+
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"
+vimcmd_symbol = "[❮](bold pink)"

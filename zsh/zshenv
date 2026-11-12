@@ -1,0 +1,2 @@
+# ~/.zshenv: every zsh, including scripts. Keep it tiny.
+[[ -f "$HOME/.cargo/env" ]] && source "$HOME/.cargo/env"

@@ -1,0 +1,33 @@
+#!/bin/sh
+# SynthWave '84 Byobu monitoring; POSIX sh compatible
+PURPLE='#[fg=#b893ce]'
+CYAN='#[fg=#36f9f6]'
+PINK='#[fg=#ff7edb]'
+GREEN='#[fg=#72f1b8]'
+MUTED='#[fg=#a99bbd]'
+RESET='#[fg=default,bg=default]'
+OS='Linux'
+if [ -r /etc/os-release ]; then
+    . /etc/os-release
+    OS="${NAME:-Linux} ${VERSION_ID:-}"
+fi
+HOST=$(hostname -s 2>/dev/null)
+# Sample /proc/stat twice for recent CPU utilization
+cpu_sample() {
+    awk '/^cpu / { idle=$5+$6; total=0; for (i=2;i<=NF;i++) total+=$i; print total, idle; exit }' /proc/stat
+}
+set -- $(cpu_sample)
+t1=${1:-0}; i1=${2:-0}
+sleep 0.2
+set -- $(cpu_sample)
+t2=${1:-0}; i2=${2:-0}
+dt=$((t2-t1)); di=$((i2-i1))
+CPU=0
+if [ "$dt" -gt 0 ]; then CPU=$(((dt-di)*100/dt)); fi
+RAM=$(awk '/^MemTotal:/ {t=$2} /^MemAvailable:/ {a=$2} END {if(t>0) printf "%.0f", (t-a)*100/t; else printf "0"}' /proc/meminfo)
+DISK=$(df -P / | awk 'NR==2 {print $5}')
+printf '%s %s%s' "$PURPLE" "$OS" "$RESET"
+printf '  %s %s%s' "$MUTED" "$HOST" "$RESET"
+printf '  %s %s%%%s' "$CYAN" "$CPU" "$RESET"
+printf '  %s %s%%%s' "$PINK" "$RAM" "$RESET"
+printf '  %s %s%s' "$GREEN" "$DISK" "$RESET"

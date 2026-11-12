@@ -1,0 +1,48 @@
+# general aliases
+alias e="exit"
+alias python=python3
+alias oc="opencode"
+alias tmux-restart="tmux source-file ~/.config/byobu/profile.tmux && tmux refresh-client -S"
+
+# git aliases
+alias ga="git add -A ."
+alias gc="git commit"
+alias gco="git checkout"
+alias gp="git push"
+alias gpu="git pull"
+alias gf="git fetch"
+alias gfup="git fetch upstream"
+alias gm="git merge"
+alias gwa="git worktree add"
+alias gwl="git worktree list"
+alias gwr="git worktree remove"
+
+# Docker aliases
+# alias docker="podman"
+# alias docker-compose="podman-compose"
+alias dk="docker"
+alias dke="docker exec"
+alias dkr="docker run"
+alias dkrm="docker rm"
+alias dkb="docker build"
+alias dkp="docker pull"
+alias dkps="docker ps -a"
+alias dki="docker images"
+alias dkc="docker-compose"
+
+# k8s aliases
+alias kc="kubectl"
+
+# Modern tool aliases
+alias bat="batcat -p --paging never"
+alias cat="bat"
+alias ls="eza"
+alias fd="fdfind --maxdepth 100"
+alias clip="xclip -sel c <"
+
+# Python aliases
+alias ptpy="ptpython"
+alias bpy="bpython"
+alias wo="workon"
+
+

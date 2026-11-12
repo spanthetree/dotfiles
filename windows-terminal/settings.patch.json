@@ -1,0 +1,34 @@
+{
+  "profiles": {
+    "defaults": {
+      "colorScheme": "SynthWave '84",
+      "font": { "face": "JetBrainsMono Nerd Font", "size": 11 },
+      "opacity": 95
+    }
+  },
+  "schemes": [
+    {
+      "name": "SynthWave '84",
+      "background": "#111018",
+      "foreground": "#FFFFFF",
+      "cursorColor": "#36F9F6",
+      "selectionBackground": "#30303A",
+      "black": "#000000",
+      "red": "#FE4450",
+      "green": "#72F1B8",
+      "yellow": "#FEDE5D",
+      "blue": "#36F9F6",
+      "purple": "#FF7EDB",
+      "cyan": "#36F9F6",
+      "white": "#F8F8F2",
+      "brightBlack": "#6A5A7A",
+      "brightRed": "#FF6E76",
+      "brightGreen": "#A5F7CE",
+      "brightYellow": "#FFF3A3",
+      "brightBlue": "#80FFFF",
+      "brightPurple": "#FFA6E8",
+      "brightCyan": "#9AFFFF",
+      "brightWhite": "#FFFFFF"
+    }
+  ]
+}
