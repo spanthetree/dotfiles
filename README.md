@@ -16,6 +16,23 @@ Configs are symlinked, so editing `~/.zshrc` etc. edits this repo. Anything alre
 
 Update a machine: `git -C ~/dotfiles pull && ~/dotfiles/install.sh`
 
+### New Windows machine
+
+From any PowerShell window:
+
+```powershell
+irm https://raw.githubusercontent.com/spanthetree/dotfiles/main/install.ps1 -OutFile $env:TEMP\dotfiles.ps1
+powershell -ExecutionPolicy Bypass -File $env:TEMP\dotfiles.ps1
+```
+
+It asks for admin, then:
+1. Installs Windows Terminal, VS Code, Git, YASB and JetBrainsMono Nerd Font (winget).
+2. Clones this repo to `%USERPROFILE%\dotfiles` and points YASB at `windows\yasb` (`YASB_CONFIG_HOME`), with autostart on.
+3. Asks which Debian/Ubuntu distro to install, enables WSL2 (reboots once if needed and resumes after sign-in), and installs the distro. Create your Linux user, then type `exit`.
+4. Inside WSL, clones this repo to `~/dotfiles` and runs `install.sh --packages`, which also patches Windows Terminal.
+
+Re-running is safe. Two clones exist: Windows (YASB config) and WSL (everything else).
+
 ## Per-machine files (never committed)
 
 | File | For |
@@ -34,6 +51,8 @@ Update a machine: `git -C ~/dotfiles pull && ~/dotfiles/install.sh`
 | `byobu/` | `~/.config/byobu/`: 4-row status bar, pulsing active tab, clickable key hints |
 | `vim/vimrc` | `~/.vimrc`; plugins via vim-plug into `~/.vim/plugged` |
 | `windows-terminal/settings.patch.json` | merged into WT `settings.json` under WSL (scheme + defaults only) |
+| `windows/yasb/` | YASB status bar config, read in place via `YASB_CONFIG_HOME` |
+| `install.ps1` | Windows bootstrap (see above) |
 
 The installer also clones tmux-resurrect and tmux-continuum into `~/.tmux/plugins`.
 
@@ -64,6 +83,8 @@ Semantic versions as git tags (`vMAJOR.MINOR.PATCH`), each listed in [CHANGELOG.
 ## Checks
 
 WT merge logic: `python3 -I windows-terminal/test_merge.py`
+
+Windows installer helpers: `powershell -ExecutionPolicy Bypass -File windows\test_install.ps1`
 
 ## License
 

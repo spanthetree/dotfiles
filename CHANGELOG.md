@@ -2,6 +2,12 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [SemVer](https://semver.org/), tagged `vX.Y.Z`.
 
+## [1.3.0] - 2026-11-13
+
+### Added
+- `install.ps1` Windows bootstrap: installs Windows Terminal, VS Code, Git, YASB and the Nerd Font; enables WSL2 (resumes after reboot); offers a Debian/Ubuntu distro menu; then runs `install.sh --packages` inside WSL.
+- YASB config in `windows/yasb/`, used in place via `YASB_CONFIG_HOME`, autostart on.
+
 ## [1.2.2] - 2026-11-13
 
 ### Fixed
@@ -40,6 +46,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [Sem
 ### Added
 - Initial repo: zsh (antidote, replaces Prezto), Starship prompt and status config, byobu 4-row status bar, vim (vim-plug, replaces pathogen), Windows Terminal settings merge, `install.sh` with backup-then-link.
 
+[1.3.0]: https://github.com/spanthetree/dotfiles/compare/v1.2.2...v1.3.0
 [1.2.2]: https://github.com/spanthetree/dotfiles/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/spanthetree/dotfiles/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/spanthetree/dotfiles/compare/v1.1.0...v1.2.0
