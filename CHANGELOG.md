@@ -2,6 +2,14 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [SemVer](https://semver.org/), tagged `vX.Y.Z`.
 
+## [1.5.0] - 2026-11-13
+
+### Added
+- `install.sh --packages` installs Python 3.11, 3.12 and 3.14 (latest patch of each) with pyenv, and sets 3.12 as global if the global is still `system`.
+
+### Changed
+- `install.sh --packages` updates an existing `~/.pyenv` (`git pull --ff-only`) so new Python versions can be installed.
+
 ## [1.4.1] - 2026-11-13
 
 ### Fixed
@@ -57,6 +65,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [Sem
 ### Added
 - Initial repo: zsh (antidote, replaces Prezto), Starship prompt and status config, byobu 4-row status bar, vim (vim-plug, replaces pathogen), Windows Terminal settings merge, `install.sh` with backup-then-link.
 
+[1.5.0]: https://github.com/spanthetree/dotfiles/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/spanthetree/dotfiles/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/spanthetree/dotfiles/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/spanthetree/dotfiles/compare/v1.2.2...v1.3.0

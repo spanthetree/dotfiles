@@ -60,7 +60,7 @@ The installer also clones tmux-resurrect and tmux-continuum into `~/.tmux/plugin
 - Shell/dev: ripgrep, fd, fzf, jq, yq, cloc, zoxide, eza, bat, xclip
 - HTTP/network: httpie, xh (also `ht`), tcptraceroute, whois, bgpq4, socat
 - Infra: Docker + compose v2 + buildx, kubectl, helm, terraform, ansible
-- Python: pyenv, uv, virtualenvwrapper
+- Python: pyenv (3.11, 3.12 as global, 3.14), uv, virtualenvwrapper
 - AI CLIs: Claude Code, Codex, OpenCode (desktop apps go on Windows under WSL)
 
 ## Keys

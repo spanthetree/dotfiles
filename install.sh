@@ -86,6 +86,18 @@ install_packages() {
   if [[ ! -d $HOME/.pyenv ]]; then
     log "pyenv"
     git clone -q https://github.com/pyenv/pyenv.git "$HOME/.pyenv"
+  else
+    git -C "$HOME/.pyenv" pull -q --ff-only || warn "pyenv update failed; new Python versions may be missing"
+  fi
+  # Pythons: latest patch of each; 3.12 becomes global unless you already picked one
+  local pyenv=$HOME/.pyenv/bin/pyenv v
+  export PYENV_ROOT=$HOME/.pyenv
+  for v in 3.11 3.12 3.14; do
+    v=$("$pyenv" latest -k "$v")
+    [[ -d $HOME/.pyenv/versions/$v ]] || { log "python $v (builds from source, a few minutes)"; "$pyenv" install -s "$v"; }
+  done
+  if [[ $("$pyenv" global) == system ]]; then
+    "$pyenv" global "$("$pyenv" latest 3.12)"
   fi
   if [[ ! -d $HOME/.nvm ]]; then
     log "nvm"
