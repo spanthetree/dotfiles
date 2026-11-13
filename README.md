@@ -64,3 +64,7 @@ Semantic versions as git tags (`vMAJOR.MINOR.PATCH`), each listed in [CHANGELOG.
 ## Checks
 
 WT merge logic: `python3 -I windows-terminal/test_merge.py`
+
+## License
+
+[MIT](LICENSE)
