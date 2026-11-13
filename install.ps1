@@ -1,5 +1,5 @@
 <#
-Windows bootstrap: Windows Terminal, VS Code, Git, YASB (config from this repo), WSL2 + a chosen
+Windows bootstrap: Windows Terminal, VS Code, Git, YASB (config from this repo), Claude Desktop, OpenCode Desktop, WSL2 + a chosen
 Debian/Ubuntu distro, then clones this repo inside WSL and runs install.sh --packages.
 
 Fresh machine (any PowerShell window):
@@ -98,7 +98,8 @@ function Main {
   }
 
   # 1. Windows apps
-  foreach ($id in 'Microsoft.WindowsTerminal', 'Microsoft.VisualStudioCode', 'Git.Git', 'AmN.yasb', 'DEVCOM.JetBrainsMonoNerdFont') {
+  foreach ($id in 'Microsoft.WindowsTerminal', 'Microsoft.VisualStudioCode', 'Git.Git', 'AmN.yasb', 'DEVCOM.JetBrainsMonoNerdFont',
+               'Anthropic.Claude', 'Anomaly.OpenCode.Desktop') {
     Install-WingetPackage $id
   }
   Update-SessionPath

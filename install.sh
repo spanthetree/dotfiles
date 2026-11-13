@@ -55,7 +55,7 @@ install_packages() {
   if ! have apt-get; then
     warn "--packages supports Debian/Ubuntu only. Missing tools on this machine:"
     local t
-    for t in zsh byobu tmux vim gpg rg starship zoxide eza bat fd pyenv uv kubectl helm terraform; do
+    for t in zsh byobu tmux vim gpg rg starship zoxide eza bat fd pyenv uv kubectl helm terraform jq docker ansible xh claude codex opencode; do
       have "$t" || warn "  $t"
     done
     return 0
@@ -67,6 +67,7 @@ install_packages() {
   log "apt packages"
   apt_install git curl ca-certificates gnupg openssl unzip xclip \
     zsh byobu tmux vim gpg ripgrep zoxide eza bat fd-find fzf virtualenvwrapper python3 \
+    jq yq httpie cloc tcptraceroute whois bgpq4 socat ansible \
     build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev \
     libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev
 
@@ -108,6 +109,39 @@ install_packages() {
     apt_install terraform
   fi
 
+  # Ubuntu's Docker; skipped when Docker CE/Desktop already provides it (packages conflict)
+  have docker || { log "docker"; apt_install docker.io docker-compose-v2 docker-buildx; }
+
+  # xh (HTTP client), also as `ht`; GitHub release, no apt package on Ubuntu 24.04
+  local m; m=$(uname -m)
+  if ! have xh; then
+    log "xh"
+    local xv; xv=$(curl -fsSLo /dev/null -w '%{url_effective}' https://github.com/ducaale/xh/releases/latest); xv=${xv##*/}
+    curl -fsSL "https://github.com/ducaale/xh/releases/download/$xv/xh-$xv-$m-unknown-linux-musl.tar.gz" |
+      tar xz -C "$HOME/.local/bin" --strip-components=1 "xh-$xv-$m-unknown-linux-musl/xh"
+  fi
+  [[ -e $HOME/.local/bin/ht ]] || ln -s xh "$HOME/.local/bin/ht"
+  if ! have codex; then
+    log "codex"
+    curl -fsSL "https://github.com/openai/codex/releases/latest/download/codex-$m-unknown-linux-musl.tar.gz" |
+      tar xz -O > "$HOME/.local/bin/codex"
+    chmod +x "$HOME/.local/bin/codex"
+  fi
+  if ! have claude; then
+    log "claude code"
+    curl -fsSL https://claude.ai/install.sh | bash >/dev/null
+  fi
+  if ! have opencode; then
+    log "opencode"
+    curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path >/dev/null
+  fi
+
+  # Docker without sudo (takes effect at next login)
+  if have docker && ! id -nG "$USER" | grep -qw docker; then
+    log "adding $USER to docker group"
+    "${sudo[@]}" usermod -aG docker "$USER"
+  fi
+
   if [[ $(getent passwd "$USER" | cut -d: -f7) != */zsh ]]; then
     log "default shell -> zsh"
     "${sudo[@]}" chsh -s "$(command -v zsh)" "$USER"
@@ -121,14 +155,17 @@ install_packages() {
     fi
   fi
 
-  # VS Code: on the Windows host under WSL (WSL has no GUI); on Linux only with a desktop session.
-  # Settings and extensions come from VS Code Settings Sync after sign-in.
+  # GUI apps: on the Windows host under WSL (WSL has no GUI); VS Code on Linux only with a desktop session.
+  # VS Code settings and extensions come from VS Code Settings Sync after sign-in.
   if is_wsl; then
-    if have winget.exe && ! (cd /mnt/c && winget.exe list -e --id Microsoft.VisualStudioCode >/dev/null 2>&1); then
-      log "VS Code (Windows)"
-      (cd /mnt/c && winget.exe install -e --id Microsoft.VisualStudioCode \
-        --accept-source-agreements --accept-package-agreements) || warn "VS Code install failed; install it by hand"
-    fi
+    local id
+    for id in Microsoft.VisualStudioCode Anthropic.Claude Anomaly.OpenCode.Desktop; do
+      if have winget.exe && ! (cd /mnt/c && winget.exe list -e --id "$id" >/dev/null 2>&1); then
+        log "$id (Windows)"
+        (cd /mnt/c && winget.exe install -e --id "$id" \
+          --accept-source-agreements --accept-package-agreements) || warn "$id install failed; install it by hand"
+      fi
+    done
   elif [[ -n ${XDG_CURRENT_DESKTOP:-}${DISPLAY:-}${WAYLAND_DISPLAY:-} ]] && ! have code; then
     log "VS Code"
     curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | "${sudo[@]}" gpg --dearmor --yes -o /usr/share/keyrings/microsoft-vscode.gpg

@@ -2,6 +2,12 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [SemVer](https://semver.org/), tagged `vX.Y.Z`.
 
+## [1.4.0] - 2026-11-13
+
+### Added
+- `install.sh --packages`: jq, yq, httpie, cloc, tcptraceroute, whois, bgpq4, socat, ansible (apt); Docker (`docker.io`, `docker-compose-v2`, `docker-buildx`, user added to `docker` group; skipped if Docker is already installed); xh HTTP client, also as `ht`; Claude Code, Codex and OpenCode CLIs.
+- Windows: Claude Desktop and OpenCode Desktop (winget), from both `install.ps1` and `install.sh` under WSL.
+
 ## [1.3.0] - 2026-11-13
 
 ### Added
@@ -46,6 +52,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [Sem
 ### Added
 - Initial repo: zsh (antidote, replaces Prezto), Starship prompt and status config, byobu 4-row status bar, vim (vim-plug, replaces pathogen), Windows Terminal settings merge, `install.sh` with backup-then-link.
 
+[1.4.0]: https://github.com/spanthetree/dotfiles/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/spanthetree/dotfiles/compare/v1.2.2...v1.3.0
 [1.2.2]: https://github.com/spanthetree/dotfiles/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/spanthetree/dotfiles/compare/v1.2.0...v1.2.1
