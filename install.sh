@@ -64,6 +64,10 @@ install_packages() {
   [[ $EUID -ne 0 ]] && sudo=(sudo)
   local arch; arch=$(dpkg --print-architecture)
 
+  # HashiCorp rotates its apt key (last 2026-09); refresh it every run so apt-get update keeps verifying
+  if [[ -f /etc/apt/sources.list.d/hashicorp.list ]]; then
+    curl -fsSL https://apt.releases.hashicorp.com/gpg | "${sudo[@]}" gpg --dearmor --yes -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+  fi
   log "apt packages"
   apt_install git curl ca-certificates gnupg openssl unzip xclip \
     zsh byobu tmux vim gpg ripgrep zoxide eza bat fd-find fzf virtualenvwrapper python3 \

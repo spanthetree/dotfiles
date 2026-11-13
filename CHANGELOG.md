@@ -2,6 +2,11 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [SemVer](https://semver.org/), tagged `vX.Y.Z`.
 
+## [1.4.1] - 2026-11-13
+
+### Fixed
+- `install.sh --packages` refreshes HashiCorp's apt signing key each run (rotated 2026-09), fixing `NO_PUBKEY FC9CA96ACA026560` on `apt-get update`.
+
 ## [1.4.0] - 2026-11-13
 
 ### Added
@@ -52,6 +57,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [Sem
 ### Added
 - Initial repo: zsh (antidote, replaces Prezto), Starship prompt and status config, byobu 4-row status bar, vim (vim-plug, replaces pathogen), Windows Terminal settings merge, `install.sh` with backup-then-link.
 
+[1.4.1]: https://github.com/spanthetree/dotfiles/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/spanthetree/dotfiles/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/spanthetree/dotfiles/compare/v1.2.2...v1.3.0
 [1.2.2]: https://github.com/spanthetree/dotfiles/compare/v1.2.1...v1.2.2
