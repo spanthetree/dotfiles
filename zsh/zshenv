@@ -1,2 +1,10 @@
 # ~/.zshenv: every zsh, including scripts. Keep it tiny.
 [[ -f "$HOME/.cargo/env" ]] && source "$HOME/.cargo/env"
+
+# PATH lives here: byobu tabs are non-login shells (no ~/.zprofile), and byobu itself starts from ~/.zprofile
+export GOROOT=/usr/local/go
+export GOPATH=$HOME/go
+export PYENV_ROOT=$HOME/.pyenv
+typeset -gU cdpath fpath mailpath path
+path=($HOME/.opencode/bin $GOPATH/bin $GOROOT/bin /usr/local/{bin,sbin} $path
+      $HOME/.cargo/bin $HOME/.local/bin $PYENV_ROOT/bin)

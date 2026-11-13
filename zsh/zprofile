@@ -5,14 +5,6 @@ export VISUAL=nano
 export PAGER=less
 [[ -z "$LANG" ]] && export LANG=en_US.UTF-8
 
-# PATH lives here, not zshrc: byobu starts below, and its status scripts need these too
-export GOROOT=/usr/local/go
-export GOPATH=$HOME/go
-export PYENV_ROOT=$HOME/.pyenv
-typeset -gU cdpath fpath mailpath path
-path=($HOME/.opencode/bin $GOPATH/bin $GOROOT/bin /usr/local/{bin,sbin} $path
-      $HOME/.cargo/bin $HOME/.local/bin $PYENV_ROOT/bin)
-
 # -F quit if one screen, -R colors, -S chop long lines, -X keep screen, -i smart case
 export LESS='-F -g -i -M -R -S -w -X -z-4'
 if (( $#commands[(i)lesspipe(|.sh)] )); then
@@ -20,4 +12,5 @@ if (( $#commands[(i)lesspipe(|.sh)] )); then
 fi
 
 # Auto-start byobu. Opt out per machine: touch ~/.config/byobu/disable-autolaunch
-_byobu_sourced=1 . /usr/bin/byobu-launch 2>/dev/null || true
+# Skipped inside tmux: byobu tabs are login shells too, and the launcher would nest or exit
+[[ -z $TMUX ]] && { _byobu_sourced=1 . /usr/bin/byobu-launch 2>/dev/null || true; }

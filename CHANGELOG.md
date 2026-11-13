@@ -2,6 +2,14 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [SemVer](https://semver.org/), tagged `vX.Y.Z`.
 
+## [1.2.2] - 2026-11-13
+
+### Fixed
+- `claude`, `uv` and other `~/.local/bin` tools missing in new byobu tabs: PATH moved from `~/.zprofile` to `~/.zshenv`, which every zsh reads.
+
+### Changed
+- Byobu tabs start login shells, so `~/.zprofile` runs in each tab. Byobu auto-launch is skipped inside tmux to avoid nesting.
+
 ## [1.2.1] - 2026-11-13
 
 ### Added
@@ -32,6 +40,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [Sem
 ### Added
 - Initial repo: zsh (antidote, replaces Prezto), Starship prompt and status config, byobu 4-row status bar, vim (vim-plug, replaces pathogen), Windows Terminal settings merge, `install.sh` with backup-then-link.
 
+[1.2.2]: https://github.com/spanthetree/dotfiles/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/spanthetree/dotfiles/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/spanthetree/dotfiles/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/spanthetree/dotfiles/compare/v1.0.0...v1.1.0

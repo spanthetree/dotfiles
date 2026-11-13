@@ -1,5 +1,7 @@
 # Byobu / tmux: SynthWave '84, status rows inherit the terminal background
 source $BYOBU_PREFIX/share/byobu/profiles/tmux
+# New tabs run login shells (byobu sets default-command to a plain $SHELL); ~/.zprofile guards against relaunching byobu
+set -g default-command ''
 
 # General
 set -g mouse on
