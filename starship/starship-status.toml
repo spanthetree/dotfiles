@@ -64,6 +64,11 @@ symbol = "󱃾 "
 style = "bold purple"
 format = '[$symbol$context( \($namespace\)) ]($style)'
 
+# Production contexts turn red
+[[kubernetes.contexts]]
+context_pattern = ".*prod.*"
+style = "bold red"
+
 # TERRAFORM
 
 [terraform]

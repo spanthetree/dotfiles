@@ -2,6 +2,8 @@
 
 zsh (antidote), Starship, Byobu/tmux, vim (vim-plug) and Windows Terminal, in a SynthWave '84 theme.
 
+Current version: see [CHANGELOG.md](CHANGELOG.md) or `git -C ~/dotfiles describe --tags`.
+
 ## Install
 
 ```sh
@@ -27,12 +29,38 @@ Update a machine: `git -C ~/dotfiles pull && ~/dotfiles/install.sh`
 | Path | Linked to |
 |---|---|
 | `zsh/zshrc`, `zshenv`, `zprofile`, `zsh_aliases`, `zsh_plugins.txt` | `~/.zshrc` etc. |
-| `starship/starship.toml` | prompt: user@host, cwd, active virtualenv |
-| `starship/starship-status.toml` | git/python/go/k8s/terraform, shown in byobu row 3 |
-| `byobu/` | `~/.config/byobu/`: 4-row status bar, pulsing active tab, clickable F-key hints |
+| `starship/starship.toml` | prompt: user@host, cwd, virtualenv; on demand: duration, jobs, sudo, exit code |
+| `starship/starship-status.toml` | git/python/go/k8s/terraform, shown in byobu row 3; k8s contexts matching `prod` turn red |
+| `byobu/` | `~/.config/byobu/`: 4-row status bar, pulsing active tab, clickable key hints |
 | `vim/vimrc` | `~/.vimrc`; plugins via vim-plug into `~/.vim/plugged` |
 | `windows-terminal/settings.patch.json` | merged into WT `settings.json` under WSL (scheme + defaults only) |
 
-VS Code: `install.sh --packages` installs it (Windows host under WSL; Linux only with a desktop). Settings, extensions, keybindings and theme come from VS Code Settings Sync: sign in with GitHub.
+The installer also clones tmux-resurrect and tmux-continuum into `~/.tmux/plugins`.
 
-Check the WT merge logic: `python3 -I windows-terminal/test_merge.py`
+## Keys
+
+Byobu (browser-style; byobu's own F-keys and Alt+arrows still work):
+
+| Key | Does |
+|---|---|
+| `Ctrl-T` | new tab (passes through to vim) |
+| `Ctrl-W` | close tab, asks first (passes through to vim) |
+| `Ctrl-PgUp` / `Ctrl-PgDn` | previous / next tab |
+| `Alt-1`…`Alt-8`, `Alt-9` | jump to tab N, last tab |
+| `Alt-D` | fuzzy tab search popup |
+| `Ctrl-F7` | toggle logging this pane to `~/logs/` |
+| `Ctrl-A Ctrl-S` / `Ctrl-A Ctrl-R` | save / restore sessions (also autosaved every 15 min, restored on start) |
+
+zsh: `Ctrl-R` fuzzy history (fzf), `Alt-C` fuzzy cd, Up/Down history substring search. `Ctrl-W` is taken by byobu, so delete a word with `Alt-Backspace`.
+
+## VS Code
+
+`install.sh --packages` installs it (Windows host under WSL; Linux only with a desktop). Settings, extensions, keybindings and theme come from VS Code Settings Sync: sign in with GitHub. WSL extensions install automatically from the `remote.defaultExtensionsIfInstalledLocally` list in synced settings.
+
+## Versioning
+
+Semantic versions as git tags (`vMAJOR.MINOR.PATCH`), each listed in [CHANGELOG.md](CHANGELOG.md). New feature: minor. Fix: patch. Change that needs manual steps on existing machines: major.
+
+## Checks
+
+WT merge logic: `python3 -I windows-terminal/test_merge.py`

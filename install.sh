@@ -66,7 +66,7 @@ install_packages() {
 
   log "apt packages"
   apt_install git curl ca-certificates gnupg openssl unzip xclip \
-    zsh byobu tmux vim gpg ripgrep zoxide eza bat fd-find virtualenvwrapper python3 \
+    zsh byobu tmux vim gpg ripgrep zoxide eza bat fd-find fzf virtualenvwrapper python3 \
     build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev \
     libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev
 
@@ -166,6 +166,13 @@ link_configs() {
 }
 
 bootstrap_plugins() {
+  local p
+  for p in tmux-resurrect tmux-continuum; do
+    if [[ ! -d $HOME/.tmux/plugins/$p ]] && have git; then
+      log "tmux plugin $p"
+      git clone -q --depth=1 "https://github.com/tmux-plugins/$p" "$HOME/.tmux/plugins/$p"
+    fi
+  done
   if [[ ! -d $HOME/.antidote ]] && have git; then
     log "antidote"
     git clone -q --depth=1 https://github.com/mattmc3/antidote.git "$HOME/.antidote"

@@ -57,7 +57,7 @@ set -g 'status-format[0]' '#[bg=default,fill=default] '
 set -g 'status-format[1]' '#[bg=default,fill=default]#{E:status-left}#{W:#[range=window|#{window_index}]#[#{?window_activity_flag,#{E:window-status-activity-style},#{E:window-status-style}}]#{E:window-status-format}#[norange]#[default],#[range=window|#{window_index}]#[#{E:window-status-current-style}]#{E:window-status-current-format}#[norange]#[default]}#[align=right]#{E:status-right}'
 # Row 2: starship-status.toml modules for the active pane's directory
 set -g 'status-format[2]' '#[bg=default,fill=default]#[align=centre]#($HOME/.config/byobu/bin/context-status #{q:pane_current_path})'
-set -g 'status-format[3]' '#[bg=default,fill=default]#[align=left]#[range=user|new]#{E:@key} F2#{E:@hint} new #[norange]#[range=user|prev]#{E:@key} F3#{E:@hint} prev #[norange]#[align=centre]#($HOME/.config/byobu/bin/retrowave-status)  #[fg=#fede5d]󰥔 %H:%M:%S#[align=right]#[range=user|next]#{E:@hint} next #{E:@key}F4 #[norange]#[range=user|close]#{E:@hint} close #{E:@key}^F6 #[norange]'
+set -g 'status-format[3]' '#[bg=default,fill=default]#[align=left]#[range=user|new]#{E:@key} ^T#{E:@hint} new #[norange]#[range=user|prev]#{E:@key} ^PgUp#{E:@hint} prev #[norange]#[range=user|search]#{E:@key} M-d#{E:@hint} search #[norange]#[align=centre]#($HOME/.config/byobu/bin/retrowave-status)  #[fg=#fede5d]󰥔 %H:%M:%S#[align=right]#[range=user|next]#{E:@hint} next #{E:@key}^PgDn #[norange]#[range=user|close]#{E:@hint} close #{E:@key}^W #[norange]'
 
 # Clicks: tabs select, row-2 hints act like their keys (close asks first)
 bind -n MouseDown1Status {
@@ -65,5 +65,36 @@ bind -n MouseDown1Status {
   if -F '#{==:#{mouse_status_range},new}' { new-window -c '#{pane_current_path}' } {
   if -F '#{==:#{mouse_status_range},prev}' { previous-window } {
   if -F '#{==:#{mouse_status_range},next}' { next-window } {
-  if -F '#{==:#{mouse_status_range},close}' { confirm-before -p 'Close pane? (y/n)' kill-pane } } } } }
+  if -F '#{==:#{mouse_status_range},search}' { send-keys -K M-d } {
+  if -F '#{==:#{mouse_status_range},close}' { confirm-before -p 'Close pane? (y/n)' kill-pane } } } } } }
 }
+
+# Browser-style tab keys (byobu's F-keys and Alt-arrows still work).
+# In vim, Ctrl-T/Ctrl-W pass through to vim; elsewhere Ctrl-W asks before closing.
+set -g @in-vim '#{m/r:^(n?vim?|vimdiff|view)$,#{pane_current_command}}'
+bind -n C-t if -F '#{E:@in-vim}' { send-keys C-t } { new-window -c '#{pane_current_path}' }
+bind -n C-w if -F '#{E:@in-vim}' { send-keys C-w } { confirm-before -p 'Close tab? (y/n)' kill-pane }
+bind -n C-PPage previous-window
+bind -n C-NPage next-window
+# Alt-1..8 jump to that tab, Alt-9 to the last one
+bind -n M-1 select-window -t :1
+bind -n M-2 select-window -t :2
+bind -n M-3 select-window -t :3
+bind -n M-4 select-window -t :4
+bind -n M-5 select-window -t :5
+bind -n M-6 select-window -t :6
+bind -n M-7 select-window -t :7
+bind -n M-8 select-window -t :8
+bind -n M-9 select-window -t :$
+# Alt-d: fuzzy tab search in a popup
+# (popup commands aren't format-expanded; tmux inside the popup targets this session via $TMUX)
+bind -n M-d display-popup -E -w 70% -h 50% -T ' tabs ' "tmux list-windows -F '#{window_index}  #{window_name}  #{pane_current_path}' | fzf --reverse --prompt='tab> ' | cut -d' ' -f1 | xargs -r -I{} tmux select-window -t ':{}'"
+# Ctrl-F7: toggle logging this pane to ~/logs (F7 is scrollback, Shift-F7 saves it)
+bind -n C-F7 pipe-pane -o "mkdir -p ~/logs && cat >> ~/logs/#{session_group}-#{window_index}.#{pane_index}-$(date +%%Y%%m%%d-%%H%%M%%S).log" \; display -d 2000 '#{?pane_pipe,logging to ~/logs,logging stopped}'
+
+# Sessions survive WSL/reboot: resurrect saves, continuum autosaves every 15 min and restores on start.
+# Byobu's per-terminal grouped sessions are dropped from saves; the base session holds all tabs.
+set -g @resurrect-hook-post-save-layout "sed -i '/^grouped_session/d'"
+set -g @continuum-restore 'on'
+run -b '~/.tmux/plugins/tmux-resurrect/resurrect.tmux'
+run -b '~/.tmux/plugins/tmux-continuum/continuum.tmux'

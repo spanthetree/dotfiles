@@ -24,6 +24,8 @@ if (( $+widgets[history-substring-search-up] )); then
   bindkey '^[[B' history-substring-search-down
   bindkey '^[OB' history-substring-search-down
 fi
+# fzf: Ctrl-R fuzzy history, Ctrl-T file path (byobu takes Ctrl-T for new tab), Alt-C cd
+[[ -r /usr/share/doc/fzf/examples/key-bindings.zsh ]] && source /usr/share/doc/fzf/examples/key-bindings.zsh
 
 # --- Completion (after antidote so zsh-completions is on fpath) ---
 mkdir -p ~/.cache/zsh
