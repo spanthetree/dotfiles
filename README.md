@@ -33,4 +33,6 @@ Update a machine: `git -C ~/dotfiles pull && ~/dotfiles/install.sh`
 | `vim/vimrc` | `~/.vimrc`; plugins via vim-plug into `~/.vim/plugged` |
 | `windows-terminal/settings.patch.json` | merged into WT `settings.json` under WSL (scheme + defaults only) |
 
+VS Code: `install.sh --packages` installs it (Windows host under WSL; Linux only with a desktop). Settings, extensions, keybindings and theme come from VS Code Settings Sync: sign in with GitHub.
+
 Check the WT merge logic: `python3 -I windows-terminal/test_merge.py`

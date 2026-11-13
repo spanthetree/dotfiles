@@ -120,6 +120,22 @@ install_packages() {
         --accept-source-agreements --accept-package-agreements) || warn "font install failed; install JetBrainsMono Nerd Font by hand"
     fi
   fi
+
+  # VS Code: on the Windows host under WSL (WSL has no GUI); on Linux only with a desktop session.
+  # Settings and extensions come from VS Code Settings Sync after sign-in.
+  if is_wsl; then
+    if have winget.exe && ! (cd /mnt/c && winget.exe list -e --id Microsoft.VisualStudioCode >/dev/null 2>&1); then
+      log "VS Code (Windows)"
+      (cd /mnt/c && winget.exe install -e --id Microsoft.VisualStudioCode \
+        --accept-source-agreements --accept-package-agreements) || warn "VS Code install failed; install it by hand"
+    fi
+  elif [[ -n ${XDG_CURRENT_DESKTOP:-}${DISPLAY:-}${WAYLAND_DISPLAY:-} ]] && ! have code; then
+    log "VS Code"
+    curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | "${sudo[@]}" gpg --dearmor --yes -o /usr/share/keyrings/microsoft-vscode.gpg
+    echo "deb [arch=amd64,arm64,armhf signed-by=/usr/share/keyrings/microsoft-vscode.gpg] https://packages.microsoft.com/repos/code stable main" |
+      "${sudo[@]}" tee /etc/apt/sources.list.d/vscode.list >/dev/null
+    apt_install code
+  fi
 }
 
 # ---------------------------------------------------------------- configs
