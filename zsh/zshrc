@@ -11,6 +11,15 @@ setopt extended_history share_history hist_expire_dups_first hist_ignore_dups \
 setopt auto_cd auto_pushd pushd_ignore_dups pushd_silent pushd_to_home cdable_vars
 setopt extended_glob interactive_comments long_list_jobs notify correct noclobber
 bindkey -e
+# Editing keys Prezto's editor module used to bind (emacs mode lacks them); both escape forms seen in tmux/terminals
+bindkey '^[[1;5D' backward-word      # Ctrl-Left
+bindkey '^[[1;5C' forward-word       # Ctrl-Right
+bindkey '^[[H' beginning-of-line '^[[1~' beginning-of-line '^[OH' beginning-of-line  # Home
+bindkey '^[[F' end-of-line '^[[4~' end-of-line '^[OF' end-of-line                    # End
+bindkey '^[[3;5~' kill-word          # Ctrl-Delete
+bindkey '^H' backward-kill-word      # Ctrl-Backspace (Windows Terminal sends ^H)
+bindkey '^[[Z' reverse-menu-complete # Shift-Tab
+autoload -Uz edit-command-line && zle -N edit-command-line && bindkey '^X^E' edit-command-line  # open line in $EDITOR
 
 # --- Plugins (antidote; installer clones it to ~/.antidote) ---
 ZSH_AUTOSUGGEST_STRATEGY=(completion)

@@ -7,7 +7,8 @@
 #   repo:    extra apt source, refreshed every run (keys rotate):
 #            {name, key: <gpg key url>, url: <deb url>, suite: <default: distro codename>, components: <default: main>}
 #   github:  owner/repo; installs a binary from the latest release into ~/.local/bin
-#            asset: release file name; file: path of the binary inside the .tar.gz (default: name)
+#            asset: release file name (.tar.gz/.tar.xz/.zip, or the bare binary)
+#            file: path of the binary inside the archive (default: name)
 #   script:  shell that installs it
 #   skip_if: shell test; when it succeeds the install is skipped
 #            (default for github/script: the command <name> exists)
@@ -61,6 +62,59 @@ linux:
   - name: starship
     script: curl -fsSL https://starship.rs/install.sh | sh -s -- -y -b ~/.local/bin >/dev/null
     uninstall: rm -f ~/.local/bin/starship
+
+  # modern replacements for classic tools (old one in the comment)
+  - duf          # df
+  - gdu          # ncdu, faster
+  - sd           # sed find/replace
+  - hexyl        # xxd/hexdump
+  - hyperfine    # time, benchmarking
+  - entr         # rerun on file change
+  - just         # make, as a task runner
+  - name: dust   # du
+    github: bootandy/dust
+    asset: dust-{tag}-{m}-unknown-linux-musl.tar.gz
+    file: dust-{tag}-{m}-unknown-linux-musl/dust
+  - name: yazi   # file manager
+    github: sxyazi/yazi
+    asset: yazi-{m}-unknown-linux-musl.zip
+    file: yazi-{m}-unknown-linux-musl/yazi
+  - name: broot  # tree/cd navigator
+    github: Canop/broot
+    asset: broot_{version}.zip
+    file: '{m}-unknown-linux-musl/broot'
+  - name: ouch   # tar/zip/unzip
+    github: ouch-org/ouch
+    asset: ouch-{m}-unknown-linux-musl.tar.gz
+    file: ouch-{m}-unknown-linux-musl/ouch
+  - name: choose # cut / awk '{print $2}'
+    github: theryangeary/choose
+    asset: choose-{m}-unknown-linux-musl
+  - libxcb-render0 # jless links these (clipboard)
+  - libxcb-shape0
+  - libxcb-xfixes0
+  - name: jless  # JSON viewer (x86_64 only)
+    github: PaulJuliusMartinez/jless
+    asset: jless-{tag}-{m}-unknown-linux-gnu.zip
+  - name: fx     # JSON viewer
+    github: antonmedv/fx
+    asset: fx_linux_{arch}
+  - name: difft  # difftastic: structural diff
+    github: Wilfred/difftastic
+    asset: difft-{version}-{m}-unknown-linux-musl.tar.gz
+  - name: procs  # ps
+    github: dalance/procs
+    asset: procs-{tag}-{m}-linux.zip
+  - name: viddy  # watch
+    github: sachaos/viddy
+    asset: viddy-{tag}-linux-{m}.tar.gz
+  - name: watchexec # rerun on file change
+    github: watchexec/watchexec
+    asset: watchexec-{version}-{m}-unknown-linux-gnu.tar.xz
+    file: watchexec-{version}-{m}-unknown-linux-gnu/watchexec
+  - name: scc    # cloc/tokei (tokei has no recent release binaries)
+    github: boyter/scc
+    asset: scc_Linux_{xarch}.tar.gz
 
   # dev
   - gh
@@ -127,6 +181,21 @@ linux:
     file: xh-{tag}-{m}-unknown-linux-musl/xh
     post: '[ -e ~/.local/bin/ht ] || ln -s xh ~/.local/bin/ht'
     uninstall: rm -f ~/.local/bin/xh ~/.local/bin/ht
+  - libcap2-bin  # setcap for trip/bandwhich
+  - gping        # ping, graphed
+  - name: trip   # trippy: mtr/traceroute
+    github: fujiapple852/trippy
+    asset: trippy-{version}-{m}-unknown-linux-musl.tar.gz
+    file: trippy-{version}-{m}-unknown-linux-musl/trip
+    # raw sockets without sudo; the cap is lost when the binary is replaced, so check each run
+    post: getcap ~/.local/bin/trip | grep -q cap_net_raw || sudo setcap cap_net_raw+ep ~/.local/bin/trip
+  - name: doggo  # dig
+    github: mr-karan/doggo
+    asset: doggo-linux-{m}.tar.gz
+  - name: bandwhich # iftop, per process
+    github: imsnif/bandwhich
+    asset: bandwhich-{tag}-{m}-unknown-linux-musl.tar.gz
+    post: getcap ~/.local/bin/bandwhich | grep -q cap_net_admin || sudo setcap cap_sys_ptrace,cap_dac_read_search,cap_net_raw,cap_net_admin+ep ~/.local/bin/bandwhich
   - nmap
   - tcpdump
   - tshark

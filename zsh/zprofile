@@ -1,7 +1,7 @@
 # ~/.zprofile: login shells, before ~/.zshrc.
 
 export EDITOR=vim
-export VISUAL=nano
+export VISUAL=vim
 export PAGER=less
 [[ -z "$LANG" ]] && export LANG=en_US.UTF-8
 

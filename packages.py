@@ -10,7 +10,7 @@ in packages.yaml is uninstalled after a y/N prompt (--yes skips it). Packages al
 recorded, so they are never removed, unless --adopt records everything in packages.yaml that is installed now.
 Core packages in PROTECTED are never removed. Keys are documented at the top of packages.yaml.
 """
-import glob, json, os, platform, shlex, subprocess, sys, tarfile, tempfile, urllib.request
+import glob, io, json, os, platform, shlex, subprocess, sys, tarfile, urllib.request, zipfile
 
 import yaml
 
@@ -136,11 +136,14 @@ def github_install(p, arch):
     tag = latest.rstrip('/').rsplit('/', 1)[1]
     url = f'https://github.com/{p["github"]}/releases/download/{tag}/{fill(p["asset"], tag, arch)}'
     member = fill(p.get('file', p['name']), tag, arch)
-    with tempfile.TemporaryFile() as tmp:
-        tmp.write(urllib.request.urlopen(url).read())
-        tmp.seek(0)
-        with tarfile.open(fileobj=tmp) as tar:
-            data = tar.extractfile(member).read()  # one named file only: no path traversal
+    blob = urllib.request.urlopen(url).read()
+    # one named file only from an archive: no path traversal
+    if not p['asset'].endswith(('.tar.gz', '.tgz', '.tar.xz', '.tar.bz2', '.zip')):
+        data = blob  # the asset is the binary itself
+    elif zipfile.is_zipfile(io.BytesIO(blob)):
+        data = zipfile.ZipFile(io.BytesIO(blob)).read(member)
+    else:
+        data = tarfile.open(fileobj=io.BytesIO(blob)).extractfile(member).read()
     dest = os.path.join(BIN, p['name'])
     with open(dest, 'wb') as f:
         f.write(data)

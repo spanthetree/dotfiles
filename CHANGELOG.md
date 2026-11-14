@@ -2,6 +2,26 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [SemVer](https://semver.org/), tagged `vX.Y.Z`.
 
+## [2.1.0] - 2026-11-14
+
+Existing machines: run `install.sh --packages` for the new tools.
+
+### Added
+- Modern CLI tools: dust, duf, gdu, yazi, broot, ouch, sd, choose, jless, fx, difftastic (`difft`), hexyl, procs, hyperfine, viddy, watchexec, entr, just, scc, gping, trippy (`trip`), doggo, bandwhich. `trip` and `bandwhich` get capabilities so they run without sudo.
+- `packages.yaml` GitHub entries can be `.zip`, `.tar.xz` or a bare binary.
+- Tab search (`Alt-D`) also searches pane text and scrollback while typing (exact match), jumps to the line in copy mode; `Alt-D` again closes it.
+- `Ctrl-Alt-Left`/`Right` move the current tab; `Ctrl-S` saves tabs now.
+- Tab bar scrolls to keep the current tab in view when tabs overflow (◀ ▶ markers); names over 24 characters are cut.
+- zsh: Ctrl-Left/Right, Home/End, Ctrl-Backspace/Delete, Shift-Tab, Ctrl-X Ctrl-E (lost with Prezto).
+
+### Changed
+- `Ctrl-W` closes a tab on a second `Ctrl-W` (or `y`); any other key cancels.
+- Search hint moved to the right of the tab bar.
+- `VISUAL` is vim.
+
+### Fixed
+- Tabs not restored after `wsl --shutdown` when several terminals start byobu at once: `bin/restore-tabs` replaces continuum's restore and restores into the startup session instead of adding one.
+
 ## [2.0.0] - 2026-11-14
 
 Existing machines: run `install.sh --packages --adopt` once (so removing a package from `packages.yaml` uninstalls it), then `wsl --shutdown` from Windows (mirrored networking).
@@ -89,6 +109,7 @@ Existing machines: run `install.sh --packages --adopt` once (so removing a packa
 ### Added
 - Initial repo: zsh (antidote, replaces Prezto), Starship prompt and status config, byobu 4-row status bar, vim (vim-plug, replaces pathogen), Windows Terminal settings merge, `install.sh` with backup-then-link.
 
+[2.1.0]: https://github.com/spanthetree/dotfiles/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/spanthetree/dotfiles/compare/v1.5.0...v2.0.0
 [1.5.0]: https://github.com/spanthetree/dotfiles/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/spanthetree/dotfiles/compare/v1.4.0...v1.4.1

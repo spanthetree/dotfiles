@@ -1,0 +1,23 @@
+#!/bin/sh
+# Restore saved tabs into byobu's startup session once per tmux server start.
+# Replaces continuum's auto-restore, which skips when Windows Terminal starts several byobu clients at once
+# (it takes their tmux clients for another server). Config reloads don't re-run it: only within 60s of start.
+[ $(( $(date +%s) - $(tmux display -p '#{start_time}') )) -lt 60 ] || exit 0
+for last in ~/.local/share/tmux/resurrect/last ~/.tmux/resurrect/last; do [ -e "$last" ] && break; done
+[ -e "$last" ] || exit 0
+sleep 2  # resurrect.tmux loads in the background; let it set its options first
+saved=$(awk -F'\t' '/^window/{print $2}' "$last" | uniq)
+# the session you were on when it saved (state line), else the first saved one
+s=$(awk -F'\t' '/^state/{print $2; exit}' "$last")
+echo "$saved" | grep -qxF "$s" || s=$(echo "$saved" | head -1)
+fresh=$(tmux list-sessions -F '#S')  # byobu's startup session(s)
+first=$(echo "$fresh" | head -1)
+# Give the startup session the saved name: resurrect then restores into it (its lone shell becomes tab 1)
+tmux has-session -t "=$s" 2>/dev/null || tmux rename-session -t "=$first" "$s"
+~/.tmux/plugins/tmux-resurrect/scripts/restore.sh
+# Several terminals at once: move the others over and drop their startup sessions
+tmux list-clients -F '#{client_name} #{client_session}' | while read -r c cs; do
+  [ "$cs" = "$s" ] || tmux switch-client -c "$c" -t "=$s"
+done
+for f in $fresh; do [ "$f" = "$first" ] || echo "$saved" | grep -qxF "$f" || tmux kill-session -t "=$f"; done
+true
