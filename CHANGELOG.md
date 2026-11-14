@@ -2,6 +2,11 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [SemVer](https://semver.org/), tagged `vX.Y.Z`.
 
+## [3.1.1] - 2026-11-15
+
+### Changed
+- README opens with a centered logo (`docs/logo.svg`): block-letter "dotfiles" in the SynthWave '84 gradient with the description, drawn as shapes so it renders the same in every browser.
+
 ## [3.1.0] - 2026-11-15
 
 ### Added
@@ -166,6 +171,7 @@ Existing machines: run `install.sh --packages --adopt` once (so removing a packa
 ### Added
 - Initial repo: zsh (antidote, replaces Prezto), Starship prompt and status config, byobu 4-row status bar, vim (vim-plug, replaces pathogen), Windows Terminal settings merge, `install.sh` with backup-then-link.
 
+[3.1.1]: https://github.com/spanthetree/dotfiles/compare/v3.1.0...v3.1.1
 [3.1.0]: https://github.com/spanthetree/dotfiles/compare/v3.0.0...v3.1.0
 [3.0.0]: https://github.com/spanthetree/dotfiles/compare/v2.4.0...v3.0.0
 [2.4.0]: https://github.com/spanthetree/dotfiles/compare/v2.3.1...v2.4.0

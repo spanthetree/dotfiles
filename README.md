@@ -1,13 +1,13 @@
-# dotfiles
-
-zsh (antidote), Starship, Byobu/tmux, vim (vim-plug), Windows Terminal and YASB, in a SynthWave '84 theme, plus the tools around them, for WSL/Ubuntu and Windows.
+<p align="center">
+  <img src="docs/logo.svg" alt="dotfiles: SynthWave '84 terminal setup for WSL, Linux and Windows. zsh, byobu, starship, vim, Windows Terminal, YASB, modern CLI tools" width="780">
+</p>
 
 ```sh
 gh repo clone spanthetree/dotfiles ~/dotfiles
 ~/dotfiles/install.cmd --packages     # Linux or WSL; on Windows: install.cmd
 ```
 
-New Windows machine, options, and how to uninstall: see [install](docs/install.md).
+New machine, options, and how to uninstall: see [install](docs/install.md).
 
 ## Docs
 
