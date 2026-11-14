@@ -6,7 +6,7 @@
 # A map adds options. Linux keys (all optional except name):
 #   repo:    extra apt source, refreshed every run (keys rotate):
 #            {name, key: <gpg key url>, url: <deb url>, suite: <default: distro codename>, components: <default: main>}
-#   github:  owner/repo; installs a binary from the latest release into ~/.local/bin
+#   github:  owner/repo; installs a binary from the latest release into ~/.local/bin, and updates it on later runs
 #            asset: release file name (.tar.gz/.tar.xz/.zip, or the bare binary)
 #            file: path of the binary inside the archive (default: name)
 #   script:  shell that installs it
@@ -31,6 +31,7 @@
 
 settings:
   autoremove: true   # after uninstalling apt packages, also `apt-get autoremove` their leftover dependencies
+  upgrade: true      # each run also `apt-get upgrade`s the whole system (GitHub binaries update to their latest release regardless)
 
 linux:
   # base
@@ -181,14 +182,8 @@ linux:
     file: xh-{tag}-{m}-unknown-linux-musl/xh
     post: '[ -e ~/.local/bin/ht ] || ln -s xh ~/.local/bin/ht'
     uninstall: rm -f ~/.local/bin/xh ~/.local/bin/ht
-  - libcap2-bin  # setcap for trip/bandwhich
+  - libcap2-bin  # setcap for bandwhich
   - gping        # ping, graphed
-  - name: trip   # trippy: mtr/traceroute
-    github: fujiapple852/trippy
-    asset: trippy-{version}-{m}-unknown-linux-musl.tar.gz
-    file: trippy-{version}-{m}-unknown-linux-musl/trip
-    # raw sockets without sudo; the cap is lost when the binary is replaced, so check each run
-    post: getcap ~/.local/bin/trip | grep -q cap_net_raw || sudo setcap cap_net_raw+ep ~/.local/bin/trip
   - name: doggo  # dig
     github: mr-karan/doggo
     asset: doggo-linux-{m}.tar.gz

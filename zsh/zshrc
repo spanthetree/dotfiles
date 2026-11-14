@@ -76,6 +76,8 @@ alias l='ls -1A'
 alias ll='ls -lh'
 alias la='ll -A'
 alias d='dirs -v'
+# mtr report: 10 rounds, AS numbers, hostnames and IPs, wide (no truncated names)
+alias mtrr='mtr -z -b -r -w -c 10'
 
 ALIASFILE=~/.zsh_aliases
 [[ -r $ALIASFILE ]] && source $ALIASFILE

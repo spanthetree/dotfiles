@@ -2,6 +2,16 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [SemVer](https://semver.org/), tagged `vX.Y.Z`.
 
+## [2.2.0] - 2026-11-14
+
+### Added
+- `settings.upgrade` in `packages.yaml` (on): each `--packages` run also does `apt-get upgrade`.
+- GitHub release binaries update to their latest release on later runs (installed tag recorded per binary; only binaries in `~/.local/bin`). Existing machines re-download each once.
+- `mtrr` alias: `mtr -z -b -r -w -c 10` (report with AS numbers, hostnames and IPs).
+
+### Removed
+- trippy (`trip`): its map needs GeoIP data it can't get from the free DB-IP file, and its reports have no AS column. The next `--packages` run offers to uninstall it.
+
 ## [2.1.0] - 2026-11-14
 
 Existing machines: run `install.sh --packages` for the new tools.
@@ -109,6 +119,7 @@ Existing machines: run `install.sh --packages --adopt` once (so removing a packa
 ### Added
 - Initial repo: zsh (antidote, replaces Prezto), Starship prompt and status config, byobu 4-row status bar, vim (vim-plug, replaces pathogen), Windows Terminal settings merge, `install.sh` with backup-then-link.
 
+[2.2.0]: https://github.com/spanthetree/dotfiles/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/spanthetree/dotfiles/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/spanthetree/dotfiles/compare/v1.5.0...v2.0.0
 [1.5.0]: https://github.com/spanthetree/dotfiles/compare/v1.4.1...v1.5.0

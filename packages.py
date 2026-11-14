@@ -131,9 +131,11 @@ def fill(s, tag, arch):
     return s.format(tag=tag, version=tag.lstrip('v'), arch=arch, m=m, xarch='x86_64' if arch == 'amd64' else arch)
 
 
-def github_install(p, arch):
-    latest = urllib.request.urlopen(f'https://github.com/{p["github"]}/releases/latest').geturl()
-    tag = latest.rstrip('/').rsplit('/', 1)[1]
+def latest_tag(p):  # the releases/latest redirect, not the API: no rate limit
+    return urllib.request.urlopen(f'https://github.com/{p["github"]}/releases/latest').geturl().rstrip('/').rsplit('/', 1)[1]
+
+
+def github_install(p, arch, tag):
     url = f'https://github.com/{p["github"]}/releases/download/{tag}/{fill(p["asset"], tag, arch)}'
     member = fill(p.get('file', p['name']), tag, arch)
     blob = urllib.request.urlopen(url).read()
@@ -179,11 +181,16 @@ def linux():
             warn(f'apt: {p["name"]} not available here, skipping')
     if subprocess.run(SUDO + ['env', 'DEBIAN_FRONTEND=noninteractive', 'apt-get', 'install', '-y', '-qq'] + apt).returncode:
         failed.append('apt packages')
+    if (doc().get('settings') or {}).get('upgrade', False):
+        log('apt upgrade')
+        if subprocess.run(SUDO + ['env', 'DEBIAN_FRONTEND=noninteractive', 'apt-get', 'upgrade', '-y', '-qq']).returncode:
+            failed.append('apt upgrade')
     after = dpkg_installed()
 
     for p in pkgs:
         name, k = p['name'], kind(p)
         mine = name in record
+        tag = None
         try:
             if k == 'apt':
                 mine = mine or (name in after and (ADOPT or name not in before))
@@ -191,10 +198,18 @@ def linux():
                 mine = mine or ADOPT
                 if 'update' in p and not sh(p['update']):
                     warn(f'{name}: update failed')
+                # our GitHub binaries: fetch again when a newer release is out (not one installed some other way)
+                if k == 'github' and os.path.exists(os.path.join(BIN, name)):
+                    tag = latest_tag(p)
+                    if (record.get(name) or {}).get('tag') != tag:
+                        log(f'{name} {tag}')
+                        github_install(p, arch, tag)
+                        mine = True
             else:
                 log(name)
                 if k == 'github':
-                    github_install(p, arch)
+                    tag = latest_tag(p)
+                    github_install(p, arch, tag)
                 elif not sh(p['script']):
                     raise RuntimeError('install script failed')
                 mine = True
@@ -206,6 +221,8 @@ def linux():
             continue  # no language, no tools
         if mine:  # keep how to uninstall it, since its entry is gone once it's removed from packages.yaml
             record[name] = {'kind': k, 'uninstall': p.get('uninstall')}
+            if tag:
+                record[name]['tag'] = tag
         for tid, check, install, uninstall in tools(p):
             if quiet(['bash', '-c', check]):
                 mine = tid in record or ADOPT
