@@ -10,13 +10,15 @@ Fresh machine (any PowerShell window):
 Re-running is safe. If enabling WSL needs a reboot, setup resumes after you sign in again.
 
 Uninstall: install.cmd --uninstall (or -Uninstall; --yes / -Yes skips the questions). Runs the Linux uninstall in each
-WSL distro that has ~/dotfiles, then undoes what only this script did. WSL and its distros stay.
+WSL distro that has ~/dotfiles, then undoes what only this script did. WSL and its distros stay, unless
+--remove-wsl (-RemoveWsl): it then also deletes those distros, with all their files, and WSL itself if no other distro uses it.
 #>
 [CmdletBinding(PositionalBinding = $false)]
-param([string]$Distro, [switch]$Uninstall, [switch]$Yes, [Parameter(ValueFromRemainingArguments)][string[]]$Rest)
+param([string]$Distro, [switch]$Uninstall, [switch]$Yes, [switch]$RemoveWsl, [Parameter(ValueFromRemainingArguments)][string[]]$Rest)
 # install.cmd passes Linux-style flags through
 if ($Rest -contains '--uninstall') { $Uninstall = [switch]$true }
 if ($Rest -contains '--yes') { $Yes = [switch]$true }
+if ($Rest -contains '--remove-wsl') { $RemoveWsl = [switch]$true }
 
 $ErrorActionPreference = 'Stop'
 $RepoUrl   = 'https://github.com/spanthetree/dotfiles.git'
@@ -111,6 +113,13 @@ function Select-Distro {
   }
 }
 
+# Installed distro names; none when WSL has none (it prints a message and fails then)
+function Get-WslDistros {
+  $names = @(wsl --list --quiet 2>$null)
+  if ($LASTEXITCODE -ne 0) { return }
+  $names | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+}
+
 function Test-WslReady { wsl --status *> $null; return ($LASTEXITCODE -eq 0) }
 
 function Test-DistroInstalled([string]$Name) {
@@ -120,10 +129,12 @@ function Test-DistroInstalled([string]$Name) {
 function Uninstall-Dotfiles {
   $flags = if ($Yes) { ' --yes' } else { '' }
   # 1. Inside WSL: links, packages, the Windows apps it recorded, Windows Terminal, .wslconfig, YASB config
+  $ours = @()
   if (Test-WslReady) {
-    foreach ($d in @(wsl --list --quiet 2>$null | ForEach-Object { $_.Trim() } | Where-Object { $_ })) {
+    foreach ($d in Get-WslDistros) {
       wsl -d $d --cd ~ -e sh -c 'test -x ~/dotfiles/install.cmd' *> $null
       if ($LASTEXITCODE -ne 0) { continue }
+      $ours += $d
       Log "uninstalling inside $d"
       wsl -d $d --cd ~ -e bash -lc "~/dotfiles/install.cmd --uninstall$flags"
     }
@@ -155,9 +166,27 @@ function Uninstall-Dotfiles {
   # 4. A pending resume after a WSL reboot
   Remove-ItemProperty -Path $RunOnce -Name 'dotfiles-install' -ErrorAction SilentlyContinue
 
+  # 5. --remove-wsl: the distros that had this repo, then WSL itself when no other distro is left
+  if ($RemoveWsl -and (Test-WslReady)) {
+    foreach ($d in $ours) {
+      Write-Warning "$d will be deleted with ALL its files (home folder included)"
+      if ($Yes -or (Read-Host "Delete $d? [y/N]") -match '^[yY]') { Log "deleting $d"; wsl --unregister $d | Out-Host }
+    }
+    $others = @(Get-WslDistros)
+    if ($others.Count) {
+      Write-Warning "WSL kept: other distros use it ($($others -join ', '))"
+    } else {
+      Log 'removing WSL'
+      wsl --shutdown
+      wsl --uninstall | Out-Host
+      Disable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -NoRestart -ErrorAction SilentlyContinue | Out-Null
+      Write-Host 'Reboot to finish removing WSL. Virtual Machine Platform stays on: Docker Desktop and others use it.'
+    }
+  }
+
   Log 'done. Left for you:'
   Write-Host "  - delete the Windows clone: $WinClone"
-  Write-Host '  - remove a Linux distro and ALL its files, only if you want: wsl --unregister <name> (list: wsl -l)'
+  if (-not $RemoveWsl) { Write-Host '  - remove WSL too: install.cmd --uninstall --remove-wsl (deletes the distros that have the repo, with all their files)' }
 }
 
 function Main {
@@ -167,6 +196,7 @@ function Main {
     if ($Distro) { $argList += @('-Distro', $Distro) }
     if ($Uninstall) { $argList += '-Uninstall' }
     if ($Yes) { $argList += '-Yes' }
+    if ($RemoveWsl) { $argList += '-RemoveWsl' }
     Start-Process powershell -Verb RunAs -ArgumentList $argList
     return
   }

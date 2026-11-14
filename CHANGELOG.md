@@ -2,6 +2,11 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [SemVer](https://semver.org/), tagged `vX.Y.Z`.
 
+## [3.1.0] - 2026-11-15
+
+### Added
+- `install.cmd --uninstall --remove-wsl` (Windows): after the normal uninstall, deletes each WSL distro that has `~/dotfiles`, with all its files (asks per distro unless `--yes`), then uninstalls WSL and turns off its Windows feature if no other distro is left. Virtual Machine Platform stays on. Without the switch, WSL and its distros stay; only what the installer added inside them is removed.
+
 ## [3.0.0] - 2026-11-15
 
 ### Changed
@@ -161,6 +166,7 @@ Existing machines: run `install.sh --packages --adopt` once (so removing a packa
 ### Added
 - Initial repo: zsh (antidote, replaces Prezto), Starship prompt and status config, byobu 4-row status bar, vim (vim-plug, replaces pathogen), Windows Terminal settings merge, `install.sh` with backup-then-link.
 
+[3.1.0]: https://github.com/spanthetree/dotfiles/compare/v3.0.0...v3.1.0
 [3.0.0]: https://github.com/spanthetree/dotfiles/compare/v2.4.0...v3.0.0
 [2.4.0]: https://github.com/spanthetree/dotfiles/compare/v2.3.1...v2.4.0
 [2.3.1]: https://github.com/spanthetree/dotfiles/compare/v2.3.0...v2.3.1

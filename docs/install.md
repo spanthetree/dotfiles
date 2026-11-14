@@ -59,7 +59,9 @@ The script installs the `powershell-yaml` module (current user) to read `package
 ~/dotfiles/install.cmd --uninstall   # add --yes to skip the questions
 ```
 
-On Windows, `install.cmd --uninstall` runs this inside every WSL distro that has `~/dotfiles`. Then it turns off YASB's autostart, clears `YASB_CONFIG_HOME`, and uninstalls any Windows apps still recorded (it asks). WSL and its distros stay: `wsl --unregister <name>` deletes one, with all its files.
+On Windows, `install.cmd --uninstall` runs this inside every WSL distro that has `~/dotfiles`. Then it turns off YASB's autostart, clears `YASB_CONFIG_HOME`, and uninstalls any Windows apps still recorded (it asks). WSL and its distros stay.
+
+To remove WSL too: `install.cmd --uninstall --remove-wsl` (Windows only). After the steps above, it deletes each distro that has `~/dotfiles`, **with all its files** (it asks for each one, unless `--yes`). If no other distro is left, it also uninstalls WSL and turns off its Windows feature (reboot to finish). Virtual Machine Platform stays on, since Docker Desktop and others use it.
 
 On Linux or in WSL it:
 1. Uninstalls the packages this installer installed (it lists them and asks), and the apt repos it added. Under WSL, also the Windows apps it installed. Packages that were already there stay, and so do core ones (git, curl, zsh, python3...).

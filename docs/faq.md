@@ -4,7 +4,7 @@
 It symlinks configs into `~` (list in [layout](layout.md)), clones a few plugins, and with `--packages` installs the tools in [software](software.md). Under WSL it also merges a theme into Windows Terminal, sets mirrored networking in `.wslconfig`, and installs the Windows apps. Anything it replaces is moved to `~/.dotfiles-backup/<timestamp>/`. Nothing is deleted.
 
 **I don't like it. How do I undo it?**
-`install.cmd --uninstall`, on Linux, in WSL, or on Windows (see [install](install.md#uninstall)). It removes the links, plugins and settings, and puts back what was there before the first install. It also uninstalls the packages it installed (it asks first; `--yes` skips the question). Packages that were already on the machine stay. Your default shell stays zsh: `chsh -s /bin/bash` to change it. Then delete the clone. Backups stay in `~/.dotfiles-backup`.
+`install.cmd --uninstall`, on Linux, in WSL, or on Windows (see [install](install.md#uninstall)). It removes the links, plugins and settings, and puts back what was there before the first install. It also uninstalls the packages it installed (it asks first; `--yes` skips the question). Packages that were already on the machine stay. Your default shell stays zsh: `chsh -s /bin/bash` to change it. Then delete the clone. On Windows, add `--remove-wsl` to also delete the WSL distro(s) with the repo, and WSL itself if nothing else uses it. Backups stay in `~/.dotfiles-backup`.
 
 **Does it work on native Linux, not just WSL?**
 Yes. `./install.cmd` works the same. Steps for WSL and Windows are skipped. `--packages` needs Debian or Ubuntu (apt). On other distros, the configs still install. Install the tools you want by hand from [software](software.md).
