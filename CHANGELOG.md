@@ -2,6 +2,15 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [SemVer](https://semver.org/), tagged `vX.Y.Z`.
 
+## [2.4.0] - 2026-11-15
+
+### Added
+- Installer look: gradient title and section headers; a spinner with elapsed time on each quiet step (apt, GitHub downloads, scripts, winget, git clones, plugins), ending in `✓`/`✗`. A failed step shows its last 20 lines. Check loops show a counter.
+- `install.sh --no-fx` (or `NO_FX=1`): plain output with each step's full output; also the default when output isn't a terminal.
+
+### Changed
+- `install.sh --packages` asks for the sudo password once at the start and keeps it fresh during the run.
+
 ## [2.3.1] - 2026-11-15
 
 ### Fixed
@@ -135,6 +144,7 @@ Existing machines: run `install.sh --packages --adopt` once (so removing a packa
 ### Added
 - Initial repo: zsh (antidote, replaces Prezto), Starship prompt and status config, byobu 4-row status bar, vim (vim-plug, replaces pathogen), Windows Terminal settings merge, `install.sh` with backup-then-link.
 
+[2.4.0]: https://github.com/spanthetree/dotfiles/compare/v2.3.1...v2.4.0
 [2.3.1]: https://github.com/spanthetree/dotfiles/compare/v2.3.0...v2.3.1
 [2.3.0]: https://github.com/spanthetree/dotfiles/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/spanthetree/dotfiles/compare/v2.1.0...v2.2.0

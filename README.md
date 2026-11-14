@@ -63,6 +63,8 @@ The installer also clones tmux-resurrect and tmux-continuum into `~/.tmux/plugin
 
 Packages: see [`packages.yaml`](packages.yaml), the one list for both systems. To add one, add a line and re-run `install.sh --packages`. To remove one, delete its line and re-run: the installer asks, then uninstalls it, but only if it installed it on that machine (recorded in `~/.local/state/dotfiles/linux.json` and `%LOCALAPPDATA%\dotfiles\windows.installed`). On a machine set up before this existed, run `install.sh --packages --adopt` once. Language tools go under their language's entry as `tools:` (go: `go install`, pyenv: `uv tool install`, rbenv: `gem install`), so they install after it and leave with it. Core packages (git, curl, zsh, python3...) are never removed; `settings.autoremove` also clears leftover apt dependencies. Highlights: network tools (nmap, tshark, mtr, bgpq4, xh/`ht`), Kubernetes (kubectl, k9s, stern, helm), terraform, ansible, Docker, AWS CLI, pyenv with Python 3.11/3.12 (global)/3.14, uv, rbenv with Ruby 3.2/3.4 (global)/4.0, Go (latest, plus gopls), and the Claude Code, Codex and OpenCode CLIs.
 
+Installer output: themed section headers, and a spinner with elapsed time on each step (`✓`/`✗` when done; a failed step shows its output). sudo asks once at the start. `install.sh --no-fx` (or `NO_FX=1`) prints plain text with full output; that is also the default when output is not a terminal.
+
 Under WSL, `install.sh` also sets `networkingMode=mirrored` in `%USERPROFILE%\.wslconfig` (WSL shares Windows' network interfaces, so nmap/tcpdump see the real LAN; apply with `wsl --shutdown`), and points git's pager at delta via `include.path` to `git/delta.gitconfig`.
 
 ## Keys

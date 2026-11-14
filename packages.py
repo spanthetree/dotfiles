@@ -10,7 +10,7 @@ in packages.yaml is uninstalled after a y/N prompt (--yes skips it). Packages al
 recorded, so they are never removed, unless --adopt records everything in packages.yaml that is installed now.
 Core packages in PROTECTED are never removed. Keys are documented at the top of packages.yaml.
 """
-import glob, io, json, os, platform, shlex, subprocess, sys, tarfile, urllib.request, zipfile
+import glob, io, json, os, platform, shlex, subprocess, sys, tarfile, threading, time, urllib.request, zipfile
 
 import yaml
 
@@ -27,9 +27,65 @@ YES = '--yes' in sys.argv
 failed = []
 
 
-def log(msg): print(f'\033[36m==>\033[0m {msg}', flush=True)
-def warn(msg): print(f'\033[33m!!\033[0m {msg}', file=sys.stderr, flush=True)
-def sh(cmd): return subprocess.run(['bash', '-c', cmd]).returncode == 0
+# Terminal look (install-fx.sh's): one spinner line shows what's running; finished steps print ✓/✗ above it
+FX = sys.stdout.isatty() and not os.environ.get('NO_FX') and os.environ.get('TERM', 'dumb') != 'dumb'
+PINK, CYAN, YELL, DIM = (f'\033[38;2;{c}m' for c in ('255;126;219', '54;249;246', '254;222;93', '169;155;189'))
+RST = '\033[0m'
+LOCK = threading.Lock()
+SPIN = {'text': '', 't0': 0.0}
+
+
+def spinner():  # background thread: redraws the spinner line
+    i = 0
+    while True:
+        time.sleep(0.08)
+        i += 1
+        with LOCK:
+            if SPIN['text']:
+                w = os.get_terminal_size().columns - 12
+                print(f'\r\033[2K  {PINK}{"⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"[i % 10]}{RST} {SPIN["text"][:w]} '
+                      f'{DIM}{int(time.time() - SPIN["t0"])}s{RST}', end='', flush=True)
+
+
+def status(text):  # set the spinner line ('' hides it); its clock restarts
+    with LOCK:
+        SPIN.update(text=text, t0=time.time())
+        if FX and not text:
+            print('\r\033[2K', end='', flush=True)
+
+
+def say(line, err=False):  # a permanent line, above the spinner
+    with LOCK:
+        print(('\r\033[2K' if FX else '') + line, file=sys.stderr if err else sys.stdout, flush=True)
+
+
+def log(msg): say(f'  {CYAN}›{RST} {msg}')
+def warn(msg): say(f'  {YELL}▲{RST} {msg}', err=True)
+
+
+def done(label, ok=True):  # ✓/✗ for a step started with status(label)
+    secs = int(time.time() - SPIN['t0'])
+    say(f'  {CYAN + "✓" if ok else YELL + "✗"}{RST} {label}' + (f' {DIM}{secs}s{RST}' if secs else ''))
+
+
+def run(label, cmd, **kw):
+    """Run cmd (a list, or a bash string) as one step: spinner, then ✓/✗; output only if it fails. True if it worked."""
+    if isinstance(cmd, str):
+        cmd = ['bash', '-c', cmd]
+    if not FX:
+        log(label)
+        return subprocess.run(cmd, **kw).returncode == 0
+    prev = SPIN['text']
+    status(label)
+    r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, **kw)
+    done(label, r.returncode == 0)
+    if r.returncode:
+        for line in r.stdout.decode(errors='replace').splitlines()[-20:]:
+            say(f'    {DIM}{line}{RST}')
+    status(prev)
+    return r.returncode == 0
+
+
 def quiet(cmd, **kw): return subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **kw).returncode == 0
 
 
@@ -44,6 +100,7 @@ def load(section):
 
 
 def confirm(what, names):
+    status('')
     print(f'\n{what} no longer in packages.yaml: {", ".join(sorted(names))}')
     if YES:
         return True
@@ -169,52 +226,54 @@ def linux():
             except Exception as e:
                 warn(f'apt repo {p["repo"]["name"]}: {e}')
 
-    log('apt packages (packages.yaml)')
-    subprocess.run(SUDO + ['apt-get', 'update', '-qq'])
+    run('apt update', SUDO + ['apt-get', 'update', '-qq'])
     before = dpkg_installed()
     apt = []
-    for p in pkgs:
+    for i, p in enumerate(pkgs, 1):
+        status(f'checking apt packages {i}/{len(pkgs)}  {p["name"]}')
         if kind(p) != 'apt' or skip(p):
             continue
         if quiet(['apt-cache', 'show', p['name']]):
             apt.append(p['name'])
         else:
             warn(f'apt: {p["name"]} not available here, skipping')
-    if subprocess.run(SUDO + ['env', 'DEBIAN_FRONTEND=noninteractive', 'apt-get', 'install', '-y', '-qq'] + apt).returncode:
+    if not run(f'apt packages ({len(apt)})', SUDO + ['env', 'DEBIAN_FRONTEND=noninteractive', 'apt-get', 'install', '-y', '-qq'] + apt):
         failed.append('apt packages')
     if (doc().get('settings') or {}).get('upgrade', False):
-        log('apt upgrade')
-        if subprocess.run(SUDO + ['env', 'DEBIAN_FRONTEND=noninteractive', 'apt-get', 'upgrade', '-y', '-qq']).returncode:
+        if not run('apt upgrade', SUDO + ['env', 'DEBIAN_FRONTEND=noninteractive', 'apt-get', 'upgrade', '-y', '-qq']):
             failed.append('apt upgrade')
     after = dpkg_installed()
 
-    for p in pkgs:
+    for i, p in enumerate(pkgs, 1):
         name, k = p['name'], kind(p)
         mine = name in record
         tag = None
+        status(f'checking {i}/{len(pkgs)}  {name}')
         try:
             if k == 'apt':
                 mine = mine or (name in after and (ADOPT or name not in before))
             elif skip(p):
                 mine = mine or ADOPT
-                if 'update' in p and not sh(p['update']):
+                if 'update' in p and not run(f'{name} update', p['update']):
                     warn(f'{name}: update failed')
                 # our GitHub binaries: fetch again when a newer release is out (not one installed some other way)
                 if k == 'github' and os.path.exists(os.path.join(BIN, name)):
                     tag = latest_tag(p)
                     if (record.get(name) or {}).get('tag') != tag:
-                        log(f'{name} {tag}')
+                        status(f'{name} {tag}')
                         github_install(p, arch, tag)
+                        done(f'{name} {tag}')
                         mine = True
             else:
-                log(name)
                 if k == 'github':
                     tag = latest_tag(p)
+                    status(f'{name} {tag}')
                     github_install(p, arch, tag)
-                elif not sh(p['script']):
+                    done(f'{name} {tag}')
+                elif not run(name, p['script']):
                     raise RuntimeError('install script failed')
                 mine = True
-            if 'post' in p and not sh(p['post']):
+            if 'post' in p and not run(f'{name} setup', p['post']):
                 warn(f'{name}: post step failed')
         except Exception as e:
             warn(f'{name}: {e}')
@@ -228,8 +287,7 @@ def linux():
             if quiet(['bash', '-c', check]):
                 mine = tid in record or ADOPT
             else:
-                log(tid)
-                mine = sh(install)
+                mine = run(tid, install)
                 if not mine:
                     warn(f'{tid}: install failed')
                     failed.append(tid)
@@ -246,24 +304,23 @@ def linux():
     if gone and confirm('Linux packages', gone):
         apt_gone = [n for n in gone if record[n]['kind'] == 'apt' and not record[n]['uninstall']]
         if apt_gone:
-            log('apt remove ' + ' '.join(apt_gone))
-            if subprocess.run(SUDO + ['apt-get', 'remove', '-y', '-qq'] + apt_gone).returncode == 0:
+            if run('apt remove ' + ' '.join(apt_gone), SUDO + ['apt-get', 'remove', '-y', '-qq'] + apt_gone):
                 for n in apt_gone:
                     del record[n]
                 if (doc().get('settings') or {}).get('autoremove', True):
-                    subprocess.run(SUDO + ['apt-get', 'autoremove', '-y', '-qq'])
+                    run('apt autoremove', SUDO + ['apt-get', 'autoremove', '-y', '-qq'])
             else:
                 failed.append('apt remove')
         for n in [n for n in gone if n in record]:
             r = record[n]
-            log(f'uninstall {n}')
             if r['kind'] == 'tool':  # gone already counts as removed
-                ok = sh(r['uninstall']) or not quiet(['bash', '-c', r['check']])
+                ok = run(f'uninstall {n}', r['uninstall']) or not quiet(['bash', '-c', r['check']])
             elif r['uninstall']:
-                ok = sh(r['uninstall'])
+                ok = run(f'uninstall {n}', r['uninstall'])
             elif r['kind'] == 'github':
                 if os.path.exists(os.path.join(BIN, n)):
                     os.remove(os.path.join(BIN, n))
+                log(f'uninstall {n}')
                 ok = True
             else:
                 warn(f'{n}: no uninstall step in packages.yaml; remove it by hand')
@@ -295,14 +352,14 @@ def windows():
     record = set(open(path).read().split()) if os.path.exists(path) else set()
     every = load('windows')
 
-    for p in every:
+    for i, p in enumerate(every, 1):
         pid = p['id']
+        status(f'checking Windows apps {i}/{len(every)}  {pid}')
         if ('font' in p and font_installed(p['font'])) or quiet(winget('list', '--id', pid), cwd='/mnt/c'):
             if ADOPT:
                 record.add(pid)
             continue
-        log(f'{pid} (Windows)')
-        if subprocess.run(winget('install', '--id', pid, '--accept-package-agreements'), cwd='/mnt/c').returncode:
+        if not run(f'{pid} (Windows)', winget('install', '--id', pid, '--accept-package-agreements'), cwd='/mnt/c'):
             warn(f'{pid} install failed; install it by hand')
             failed.append(pid)
         else:
@@ -313,8 +370,7 @@ def windows():
     gone = [i for i in gone if i not in PROTECTED]
     if gone and confirm('Windows apps', gone):
         for pid in gone:
-            log(f'winget uninstall {pid}')
-            if subprocess.run(winget('uninstall', '--id', pid), cwd='/mnt/c').returncode == 0:
+            if run(f'winget uninstall {pid}', winget('uninstall', '--id', pid), cwd='/mnt/c'):
                 record.discard(pid)
             else:
                 failed.append(f'uninstall {pid}')
@@ -325,6 +381,9 @@ def windows():
 
 
 if __name__ == '__main__':
+    if FX:
+        threading.Thread(target=spinner, daemon=True).start()
     {'linux': linux, 'windows': windows}[sys.argv[1]]()
+    status('')
     if failed:
         warn('failed: ' + ', '.join(failed))

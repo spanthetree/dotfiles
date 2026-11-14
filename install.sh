@@ -4,6 +4,7 @@
 #   ./install.sh --packages  also install missing tools from packages.yaml, uninstall removed ones (Debian/Ubuntu)
 #     --adopt   once per existing machine: treat everything already installed from packages.yaml as managed
 #     --yes     uninstall removed packages without asking
+#   ./install.sh --no-fx     plain output, no spinners (also off when output isn't a terminal, or NO_FX=1)
 set -euo pipefail
 
 DOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,13 +15,16 @@ for arg in "$@"; do
   case $arg in
     --packages) PACKAGES=1 ;;
     --adopt|--yes) PACKAGES=1; PKG_FLAGS+=("$arg") ;;
-    -h|--help) sed -n '2,6s/^# \{0,1\}//p' "$0"; exit 0 ;;
+    --no-fx) NO_FX=1 ;;
+    -h|--help) sed -n '2,7s/^# \{0,1\}//p' "$0"; exit 0 ;;
     *) echo "unknown option: $arg" >&2; exit 2 ;;
   esac
 done
 
-log()  { printf '\033[36m==>\033[0m %s\n' "$*"; }
-warn() { printf '\033[33m!!\033[0m %s\n' "$*" >&2; }
+log()  { printf '  \033[38;2;54;249;246m›\033[0m %s\n' "$*"; }
+warn() { printf '  \033[38;2;254;222;93m▲\033[0m %s\n' "$*" >&2; }
+# shellcheck source=install-fx.sh
+. "$DOT/install-fx.sh"
 have() { command -v "$1" >/dev/null 2>&1; }
 is_wsl() { grep -qi microsoft /proc/version 2>/dev/null; }
 mkdir -p "$HOME/.local/bin"
@@ -51,11 +55,16 @@ install_packages() {
     return 0
   fi
   local sudo=()
-  [[ $EUID -ne 0 ]] && sudo=(sudo)
+  if [[ $EUID -ne 0 ]]; then
+    sudo=(sudo)
+    # ask for the password now, then keep it fresh: steps run behind spinners, where a sudo prompt would hide
+    sudo -v
+    ( while sleep 50; do kill -0 $$ 2>/dev/null || exit; sudo -n true; done ) >/dev/null 2>&1 &
+  fi
   # packages.py needs the system python3 + PyYAML (not pyenv's python) to read packages.yaml, and gpg for apt repo keys
   if ! /usr/bin/python3 -c 'import yaml' 2>/dev/null || ! have gpg; then
-    "${sudo[@]}" apt-get update -qq
-    DEBIAN_FRONTEND=noninteractive "${sudo[@]}" apt-get install -y -qq python3 python3-yaml gnupg
+    spin "apt update" "${sudo[@]}" apt-get update -qq
+    spin "python3-yaml, gnupg" "${sudo[@]}" env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 python3-yaml gnupg
   fi
   /usr/bin/python3 -I "$DOT/packages.py" linux "${PKG_FLAGS[@]}"
   is_wsl && have winget.exe && /usr/bin/python3 -I "$DOT/packages.py" windows "${PKG_FLAGS[@]}"
@@ -97,26 +106,21 @@ bootstrap_plugins() {
   local p
   for p in tmux-resurrect tmux-continuum; do
     if [[ ! -d $HOME/.tmux/plugins/$p ]] && have git; then
-      log "tmux plugin $p"
-      git clone -q --depth=1 "https://github.com/tmux-plugins/$p" "$HOME/.tmux/plugins/$p"
+      spin "tmux plugin $p" git clone -q --depth=1 "https://github.com/tmux-plugins/$p" "$HOME/.tmux/plugins/$p"
     fi
   done
   if [[ ! -d $HOME/.antidote ]] && have git; then
-    log "antidote"
-    git clone -q --depth=1 https://github.com/mattmc3/antidote.git "$HOME/.antidote"
+    spin "antidote" git clone -q --depth=1 https://github.com/mattmc3/antidote.git "$HOME/.antidote"
   fi
   if have zsh && [[ -r $HOME/.antidote/antidote.zsh ]]; then
-    log "zsh plugins"
-    zsh -c 'source ~/.antidote/antidote.zsh && antidote bundle <~/.zsh_plugins.txt >~/.zsh_plugins.zsh'
+    spin "zsh plugins" zsh -c 'source ~/.antidote/antidote.zsh && antidote bundle <~/.zsh_plugins.txt >~/.zsh_plugins.zsh'
   fi
   if have vim && have curl; then
     if [[ ! -f $HOME/.vim/autoload/plug.vim ]]; then
-      log "vim-plug"
-      curl -fsSLo "$HOME/.vim/autoload/plug.vim" --create-dirs \
+      spin "vim-plug" curl -fsSLo "$HOME/.vim/autoload/plug.vim" --create-dirs \
         https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
     fi
-    log "vim plugins"
-    vim -Nu "$HOME/.vimrc" -i NONE -es -c 'PlugInstall --sync' -c 'qa!' </dev/null >/dev/null 2>&1 || true
+    spin "vim plugins" vim -Nu "$HOME/.vimrc" -i NONE -es -c 'PlugInstall --sync' -c 'qa!' || true
   fi
 }
 
@@ -161,12 +165,16 @@ configure_git() {
   log "git: delta pager"
 }
 
-[[ $PACKAGES -eq 1 ]] && install_packages
+intro
+if [[ $PACKAGES -eq 1 ]]; then section packages; install_packages; fi
+section configs
 retire_old_setup
 link_configs
+section plugins
 bootstrap_plugins
+section system
 patch_windows_terminal
 configure_wsl
 configure_git
 [[ -d $BACKUP ]] && log "backups in $BACKUP"
-log "done. Start a new terminal (or: exec zsh -l)"
+outro
