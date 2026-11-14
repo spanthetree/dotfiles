@@ -307,7 +307,8 @@ windows:
     font: JetBrainsMonoNerdFont
   - AmN.yasb
   - Microsoft.PowerToys
-  - Microsoft.Sysinternals.Suite
+  - 9P7KNL5RWT25   # Sysinternals Suite from the Microsoft Store: the winget one fails its hash check whenever Microsoft
+                   # updates the unversioned zip before the manifest, and the Store copy updates itself
   - voidtools.Everything
   - WiresharkFoundation.Wireshark
   - Insecure.Nmap

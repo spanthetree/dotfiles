@@ -48,10 +48,11 @@ def confirm(what, names):
     if YES:
         return True
     try:
-        with open('/dev/tty', 'r+') as tty:
-            tty.write('Uninstall them? [y/N] ')
-            tty.flush()
-            return tty.readline().strip().lower() in ('y', 'yes')
+        # separate read and write handles: text-mode 'r+' on a tty raises "not seekable" (an OSError)
+        with open('/dev/tty', 'w') as out, open('/dev/tty') as inp:
+            out.write('Uninstall them? [y/N] ')
+            out.flush()
+            return inp.readline().strip().lower() in ('y', 'yes')
     except OSError:
         warn('no terminal to ask; not uninstalling (re-run interactively, or pass --yes)')
         return False

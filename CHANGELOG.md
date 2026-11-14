@@ -2,6 +2,12 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [SemVer](https://semver.org/), tagged `vX.Y.Z`.
 
+## [2.3.1] - 2026-11-15
+
+### Fixed
+- Package uninstall prompt: it never asked and always demanded `--yes` (Python can't open `/dev/tty` read-write in text mode); also affected the Windows prompt.
+- Sysinternals Suite installs from the Microsoft Store (`9P7KNL5RWT25`): winget's `Microsoft.Sysinternals.Suite` fails its hash check whenever Microsoft updates the unversioned zip before the manifest.
+
 ## [2.3.0] - 2026-11-14
 
 ### Added
@@ -129,6 +135,7 @@ Existing machines: run `install.sh --packages --adopt` once (so removing a packa
 ### Added
 - Initial repo: zsh (antidote, replaces Prezto), Starship prompt and status config, byobu 4-row status bar, vim (vim-plug, replaces pathogen), Windows Terminal settings merge, `install.sh` with backup-then-link.
 
+[2.3.1]: https://github.com/spanthetree/dotfiles/compare/v2.3.0...v2.3.1
 [2.3.0]: https://github.com/spanthetree/dotfiles/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/spanthetree/dotfiles/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/spanthetree/dotfiles/compare/v2.0.0...v2.1.0
