@@ -48,4 +48,3 @@ Semver: new feature = minor, fix = patch, a change that needs manual steps on ex
 - **trippy was dropped.** Its report mode lacks AS data and its DNS was slow. Use mtr (`mtrr` alias).
 - **NextTrace is skipped.** It sends hop IPs to its own API by default.
 - **No proxy settings in the repo.** They are per-machine.
-- **The installer has no animations beyond the typed title.** The pegasus was removed. Spinners stay, because they show progress.
