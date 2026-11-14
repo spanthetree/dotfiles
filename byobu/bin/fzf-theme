@@ -1,0 +1,7 @@
+# Sourced by tab-search and tab-move: fzf colors and layout in the byobu SynthWave '84 palette (see profile.tmux).
+# shellcheck shell=sh disable=SC2034
+FZF_THEME='--color=fg:#f4eaff,bg:-1,hl:#fede5d,fg+:#f4eaff,bg+:#34294f,hl+:#fede5d,prompt:#36f9f6,pointer:#ff7edb,info:#a99bbd,border:#49375f,separator:#49375f,header:#a99bbd,gutter:-1,query:#f4eaff,label:#ff7edb'
+FZF_LOOK="--reverse --info=inline-right --pointer=▶ --no-scrollbar --header-first"
+# ANSI truecolor for the rows: purple session, cyan key, pink active, dim hint, border line
+C_SES='\033[38;2;184;147;206m'; C_KEY='\033[38;2;54;249;246m'; C_ACT='\033[1;38;2;255;126;219m'
+C_DIM='\033[38;2;169;155;189m'; C_LINE='\033[38;2;73;55;95m'; C_FG='\033[38;2;244;234;255m'; C_OFF='\033[0m'

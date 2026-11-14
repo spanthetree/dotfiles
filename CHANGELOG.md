@@ -2,6 +2,16 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [SemVer](https://semver.org/), tagged `vX.Y.Z`.
 
+## [2.3.0] - 2026-11-14
+
+### Added
+- Alt-D tab popup covers every session: tabs grouped by session in aligned, themed columns (boxed tab numbers, current tab highlighted), with a preview of the tab's screen or the lines around a text match.
+- Alt-D actions on the selected tab: `Ctrl-T` new tab after it, `F8` rename, `Alt-M` move to another or a new session (following it if it was the session's last tab), `Ctrl-W` twice close.
+- `bin/fzf-theme`: shared SynthWave '84 fzf colors for the popups; popups get rounded, themed borders.
+
+### Changed
+- Tab search text matches must contain the typed words in the line itself (not only in the tab name), and results stay in session order.
+
 ## [2.2.0] - 2026-11-14
 
 ### Added
@@ -119,6 +129,7 @@ Existing machines: run `install.sh --packages --adopt` once (so removing a packa
 ### Added
 - Initial repo: zsh (antidote, replaces Prezto), Starship prompt and status config, byobu 4-row status bar, vim (vim-plug, replaces pathogen), Windows Terminal settings merge, `install.sh` with backup-then-link.
 
+[2.3.0]: https://github.com/spanthetree/dotfiles/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/spanthetree/dotfiles/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/spanthetree/dotfiles/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/spanthetree/dotfiles/compare/v1.5.0...v2.0.0

@@ -1,0 +1,46 @@
+#!/bin/sh
+# Alt-d's alt-m: move a tab to another session (or a new one). You stay where you are, unless it was the
+# session's last tab: then you follow it, instead of the terminal closing with the emptied session.
+# The tab comes from @tab-move-src, set by tab-search.
+src=$(tmux show -gv @tab-move-src)
+cur=$(tmux display -p -t "$src" '#S')
+last=$(tmux display -p -t "$src" '#{session_windows}')
+# one tmux call, so it all runs even when the popup's session ends mid-way; extra args append more commands
+mv() {
+  if [ "$last" = 1 ]; then tmux switch-client -t "=$dest" \; move-window -s "$src" -t "=$dest:" "$@"
+  else tmux move-window -s "$src" -t "=$dest:" "$@"; fi
+}
+t=$(printf '\t')
+# shellcheck source=fzf-theme
+. "${0%/*}/fzf-theme"
+what=$(tmux display -p -t "$src" '#I #W')
+# rows: raw session name (or +new), shown row: session, tab count, its tab names
+# shellcheck disable=SC2086  # FZF_LOOK is an option list
+sel=$({
+  # other sessions; byobu's per-terminal grouped copies are skipped (same tabs as their group)
+  tmux list-sessions -F "#{session_name}$t#{session_grouped}$t#{session_group}$t#{session_windows}" |
+    awk -F'\t' -v c="$cur" '($2 == 0 || $1 == $3) && $1 != c {print $1 "\t" $4}' |  # read would merge the empty group field
+    while IFS="$t" read -r s nw; do
+      printf '%s\t%s\t%s\t%s\n' "$s" "$nw" "$(tmux list-windows -t "=$s" -F '#W' | paste -sd'\t' | sed 's/\t/ · /g')" ""
+    done | awk -F'\t' -v OFS='\t' -v cs="$C_SES" -v cd="$C_DIM" -v cf="$C_FG" -v co="$C_OFF" '
+      function pad(s, n) { while (length(s) < n) s = s " "; return s }
+      { n++; R[n] = $0; if (length($1) > S) S = length($1) }
+      END { for (i = 1; i <= n; i++) { split(R[i], f, "\t")
+        print f[1], cs pad(f[1], S) co "  " cf pad(f[2] (f[2] == 1 ? " tab " : " tabs"), 8) co "  " cd f[3] co } }'
+  printf '+new\t%b+ new session%b  type a name, or leave blank%b\n' "$C_KEY" "$C_DIM" "$C_OFF"
+} | fzf --ansi --print-query $FZF_LOOK "$FZF_THEME" --prompt='  ' --delimiter="$t" --with-nth=2 \
+  --header="$(printf '%b' "${C_DIM}move ${C_FG}${what}${C_DIM} from ${C_FG}${cur}${C_DIM}   ${C_KEY}enter${C_DIM} move  ${C_KEY}esc${C_DIM} back${C_OFF}")" \
+  --bind 'alt-m:abort')
+# shellcheck disable=SC2181  # fzf: 0 picked, 1 no match (new name typed), 130 cancelled
+[ $? -le 1 ] || exit 0
+q=$(printf '%s\n' "$sel" | sed -n 1p); pick=$(printf '%s\n' "$sel" | sed -n 2p | cut -f1)
+if [ "$pick" = +new ] || [ -z "$pick" ]; then
+  if [ -n "$q" ]; then out=$(tmux new-session -d -P -F '#{window_id} #S' -s "$q") || exit 1
+  else out=$(tmux new-session -d -P -F '#{window_id} #S'); fi
+  empty=${out%% *}; dest=${out#* }
+  mv \; kill-window -t "$empty"  # drop the new session's own empty tab
+else
+  dest=$pick
+  mv
+fi
+tmux display "tab moved to $dest"

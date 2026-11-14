@@ -101,8 +101,8 @@ bind -n M-6 select-window -t :6
 bind -n M-7 select-window -t :7
 bind -n M-8 select-window -t :8
 bind -n M-9 select-window -t :$
-# Alt-d: fuzzy search tabs by name, folder or pane text, in a popup (bin/tab-search)
-bind -n M-d display-popup -E -w 80% -h 60% -T ' tabs ' '$HOME/.config/byobu/bin/tab-search'
+# Alt-d: find tabs in every session by name, folder or pane text; also new/rename/move/close them (bin/tab-search)
+bind -n M-d display-popup -E -w 90% -h 80% -b rounded -S 'fg=#b893ce' -T '#[fg=#ff7edb,bold] tabs ' '$HOME/.config/byobu/bin/tab-search'
 # Ctrl-F7: toggle logging this pane to ~/logs (F7 is scrollback, Shift-F7 saves it)
 bind -n C-F7 pipe-pane -o "mkdir -p ~/logs && cat >> ~/logs/#{session_group}-#{window_index}.#{pane_index}-$(date +%%Y%%m%%d-%%H%%M%%S).log" \; display -d 2000 '#{?pane_pipe,logging to ~/logs,logging stopped}'
 

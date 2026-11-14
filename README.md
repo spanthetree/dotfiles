@@ -76,7 +76,8 @@ Byobu (browser-style; byobu's own F-keys and Alt+arrows still work):
 | `Ctrl-PgUp` / `Ctrl-PgDn` | previous / next tab |
 | `Alt-1`…`Alt-8`, `Alt-9` | jump to tab N, last tab |
 | `Ctrl-Alt-Left` / `Ctrl-Alt-Right` | move the current tab left / right |
-| `Alt-D` | tab search popup: lists tabs; typing also searches their text, Enter jumps to the line. `Alt-D` again closes |
+| `Alt-D` | tab popup across all sessions: lists tabs by session with a preview; typing also searches their text. On the selected tab: `Enter` jump (to the line, for text), `Ctrl-T` new tab after it, `F8` rename, `Alt-M` move to another or a new session, `Ctrl-W` twice close. `Alt-D` again exits |
+| `Ctrl-Shift-F2` | new session; `Alt-Up`/`Alt-Down` switch sessions |
 | `Ctrl-F7` | toggle logging this pane to `~/logs/` |
 | `Ctrl-S` | save tabs now (passes through to vim, nano, Claude Code) |
 | `Ctrl-A Ctrl-R` | restore saved tabs (autosaved every 15 min, restored on start by `bin/restore-tabs`) |

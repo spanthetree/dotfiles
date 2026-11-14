@@ -1,20 +1,121 @@
 #!/bin/sh
-# Alt-d popup: fuzzy-find a tab. Empty query lists the tabs; typing also searches their panes' text (scrollback
-# included). Picking a text line jumps to that tab and pane and scrolls to the line in copy mode.
+# Alt-d popup: find and manage tabs in every session. Empty query lists every tab, grouped by session (current first);
+# typing also searches the panes' text, scrollback included. The preview shows the tab's screen, or the lines around a
+# text match. Enter jumps there (a text match also scrolls to the line in copy mode). On the selected tab:
+# ctrl-t opens a new tab after it, f8 renames it (as byobu's F8 does), alt-m moves it to another session (bin/tab-move),
+# ctrl-w twice closes it.
 t=$(printf '\t')
-if [ "$1" = --list ]; then  # fzf reloads this on every keystroke; $2 is the query
-  # fields: tab, pane, name shown on text lines (not searched), searched text (tab rows: name + folder)
-  tmux list-windows -F "#{window_index}$t#{pane_id}$t$t#{window_name}  #{pane_current_path}"
-  [ -n "$2" ] || exit 0
-  tmux list-panes -s -F "#{window_index}$t#{pane_id}$t#{window_name}" | while IFS="$t" read -r w p n; do
-    tmux capture-pane -p -J -S - -t "$p" | awk -v pre="$w$t$p$t$n$t" '{sub(/[ \t]+$/, "")} NF {print pre $0}'
-  done
-  exit 0
-fi
-sel=$("$0" --list | fzf --exact --reverse --prompt='tab> ' --delimiter="$t" --with-nth=1,3,4 --nth=3 --tiebreak=index \
-  --bind "change:reload:'$0' --list {q}" --bind 'alt-d:abort')  # Alt-d again closes it
+# shellcheck source=fzf-theme
+. "${0%/*}/fzf-theme"
+cur=$(tmux display -p '#S')
+# sessions: current first, then the rest; byobu's per-terminal grouped copies are skipped (same tabs as their group)
+sessions() {
+  echo "$cur"
+  tmux list-sessions -F "#{session_name}$t#{session_grouped}$t#{session_group}" |
+    awk -F'\t' -v c="$cur" '($2 == 0 || $1 == $3) && $1 != c {print $1}'
+}
+
+case $1 in
+--list)  # fzf reloads this on every keystroke; $2 is the query
+  # raw rows: kind (T tab, X text line), session, tab, pane, active, name, path or text
+  { sessions | while IFS= read -r s; do
+      tmux list-windows -t "=$s" -F "T$t#{session_name}$t#{window_index}$t#{pane_id}$t#{window_active}$t#{window_name}$t#{pane_current_path}"
+    done
+    [ -n "$2" ] && sessions | while IFS= read -r s; do
+      tmux list-panes -s -t "=$s" -F "#{window_index}$t#{pane_id}$t#{window_name}" | while IFS="$t" read -r w p n; do
+        tmux capture-pane -p -J -S - -t "$p" | awk -v pre="X$t$s$t$w$t$p${t}0$t$n$t" '{sub(/[ \t]+$/, "")} NF {print pre $0}'
+      done
+    done
+  } | awk -F'\t' -v OFS='\t' -v q="$2" -v cur="$cur" -v home="$HOME" \
+      -v cs="$C_SES" -v ck="$C_KEY" -v ca="$C_ACT" -v cd="$C_DIM" -v cl="$C_LINE" -v cf="$C_FG" -v co="$C_OFF" '
+    BEGIN {
+      split("󰎣 󰎦 󰎩 󰎬 󰎮 󰎰 󰎵 󰎸 󰎻 󰎾", LINE, " "); split("󰎡 󰎤 󰎧 󰎪 󰎭 󰎱 󰎳 󰎶 󰎹 󰎼", FILL, " ")
+      nt = split(q, term, " ")
+    }
+    function pad(s, n) { while (length(s) < n) s = s " "; return s }
+    function box(i, on) { return (i ~ /^[0-9]$/) ? (on ? FILL[i + 1] : LINE[i + 1]) : i }
+    # text lines must contain every query term themselves (not just their tab name); fzf would match the whole row.
+    # Smart case like fzf: a term with capitals is case-sensitive; !term excludes; anchors/quote prefixes are dropped.
+    function wanted(s,   i, x, neg, hay) {
+      for (i = 1; i <= nt; i++) {
+        x = term[i]; neg = sub(/^!/, "", x); sub(/^[\x27^]/, "", x); sub(/\$$/, "", x)
+        if (x == "") continue
+        hay = (x ~ /[A-Z]/) ? s : tolower(s); if (x !~ /[A-Z]/) x = tolower(x)
+        if ((index(hay, x) > 0) == neg) return 0
+      }
+      return 1
+    }
+    $1 == "X" && !wanted($7) { next }
+    { n++; R[n] = $0; if (length($2) > S) S = length($2); nm = $6; if (length(nm) > 24) nm = substr(nm, 1, 23) "…"
+      NAME[n] = nm; if (length(nm) > N) N = length(nm) }
+    END {
+      for (i = 1; i <= n; i++) {
+        split(R[i], f, "\t"); on = (f[1] == "T" && f[5] == 1 && f[2] == cur)
+        lead = cs pad(f[2], S) co "  " (on ? ca : ck) box(f[3], on) co "  "
+        if (f[1] == "T") {
+          path = f[7]; if (index(path, home) == 1) path = "~" substr(path, length(home) + 1)
+          show = lead (on ? ca : cf) pad(NAME[i], N) co "  " cd path co; raw = ""
+        } else {
+          show = lead cd pad(NAME[i], N) co " " cl "│" co " " f[7]; raw = f[7]
+        }
+        # fields: session, tab, pane, kind, shown row, raw text (text lines; for the preview and the jump)
+        print f[2], f[3], f[4], f[1], show, raw
+      }
+    }'
+  exit 0 ;;
+--preview)  # $2 kind, $3 pane, rest: the raw text line
+  kind=$2; p=$3; shift 3; line=$*
+  if [ "$kind" = X ]; then  # lines around the last occurrence, highlighted
+    n=$(tmux capture-pane -p -J -S - -t "$p" | awk -v l="$line" '{sub(/[ \t]+$/, "")} $0 == l {n = NR} END {print n + 0}')
+    tmux capture-pane -ep -J -S - -t "$p" | awk -v n="$n" -v h="${FZF_PREVIEW_LINES:-20}" '
+      NR >= n - int(h / 2) && NR < n - int(h / 2) + h { if (NR == n) printf "\033[48;2;52;41;79m%s\033[0m\n", $0; else print }'
+  else  # the visible screen, trailing blank lines dropped, bottom kept
+    tmux capture-pane -ep -t "$p" | awk '{L[NR] = $0; x = $0; gsub(/\033\[[0-9;]*m/, "", x); if (x ~ /[^ ]/) last = NR}
+      END {for (i = 1; i <= last; i++) print L[i]}' | tail -n "${FZF_PREVIEW_LINES:-20}"
+  fi
+  exit 0 ;;
+--close)  # ctrl-w: first press arms (the prompt asks), a second press on the same tab within 5s closes it
+  armed=${XDG_RUNTIME_DIR:-/tmp}/byobu-tab-close; p=$2
+  if [ "$(cut -d' ' -f1 "$armed" 2>/dev/null)" = "$p" ] &&
+     [ $(( $(date +%s) - $(cut -d' ' -f2 "$armed") )) -le 5 ]; then
+    rm -f "$armed"
+    tmux kill-window -t "$p"
+    # refresh through fzf's --listen server, in the background: fzf waits on this command for the prompt
+    curl -s -XPOST "localhost:$FZF_PORT" -d "reload('$0' --list {q})" >/dev/null 2>&1 &
+    printf '  '
+  else
+    echo "$p $(date +%s)" > "$armed"
+    printf 'close %s? ctrl-w again  ' "$(tmux display -p -t "$p" '#S:#W')"
+  fi
+  exit 0 ;;
+esac
+
+hint() { printf '%b' "${C_KEY}$1${C_DIM} $2  "; }
+# shellcheck disable=SC2086  # FZF_THEME/FZF_LOOK are option lists
+out=$("$0" --list | fzf --ansi --exact --no-sort $FZF_LOOK "$FZF_THEME" --prompt='  ' --delimiter="$t" --with-nth=5 \
+  --header="$(hint enter jump; hint ctrl-t new; hint f8 rename; hint alt-m move; hint ctrl-w close; hint alt-d exit)" \
+  --preview "'$0' --preview {4} {3} {6..}" --preview-window 'down,50%,border-top' --listen \
+  --expect=ctrl-t,f8,alt-m --bind 'alt-d:abort' \
+  --bind "change:reload('$0' --list {q})+change-prompt(  )+execute-silent(rm -f '${XDG_RUNTIME_DIR:-/tmp}/byobu-tab-close')" \
+  --bind "ctrl-w:transform-prompt('$0' --close {3})")
+key=$(printf '%s\n' "$out" | sed -n 1p); sel=$(printf '%s\n' "$out" | sed -n 2p)
 [ -n "$sel" ] || exit 0
-# cut, not read: read merges the empty field between consecutive tabs
-w=$(printf '%s' "$sel" | cut -f1); p=$(printf '%s' "$sel" | cut -f2); n=$(printf '%s' "$sel" | cut -f3); line=$(printf '%s' "$sel" | cut -f4-)
-tmux select-window -t ":$w" \; select-pane -t "$p"
-[ -z "$n" ] || tmux copy-mode -t "$p" \; send-keys -t "$p" -X search-backward-text "$line"
+# cut, not read: read merges the empty fields between consecutive tabs
+s=$(printf '%s' "$sel" | cut -f1); w=$(printf '%s' "$sel" | cut -f2); p=$(printf '%s' "$sel" | cut -f3)
+kind=$(printf '%s' "$sel" | cut -f4); line=$(printf '%s' "$sel" | cut -f6-)
+case $key in
+ctrl-t)  # new tab right after it, in its folder, and go there
+  tmux new-window -a -t "=$s:$w" -c "$(tmux display -p -t "$p" '#{pane_current_path}')" \; switch-client -t "=$s"
+  exit 0 ;;
+f8)  # rename in place (bash for an editable, prefilled line), then back to the list
+  name=$(tmux display -p -t "$p" '#W')
+  new=$(bash -c 'read -r -e -i "$1" -p "$2" n && printf %s "$n"' _ "$name" "$(printf '%b' "${C_DIM}rename ${C_SES}$s${C_DIM} tab ${C_FG}$w${C_DIM}: ${C_OFF}")")
+  [ -n "$new" ] && tmux rename-window -t "$p" "$new"
+  exec "$0" ;;
+alt-m)  # move it with the session picker, then back to the list
+  tmux set -g @tab-move-src "$(tmux display -p -t "$p" '#{window_id}')"
+  "${0%/*}/tab-move"
+  exec "$0" ;;
+esac
+tmux switch-client -t "=$s" \; select-window -t "=$s:$w" \; select-pane -t "$p"
+[ "$kind" = T ] || tmux copy-mode -t "$p" \; send-keys -t "$p" -X search-backward-text "$line"
