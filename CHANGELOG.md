@@ -2,6 +2,14 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [SemVer](https://semver.org/), tagged `vX.Y.Z`.
 
+## [3.2.0] - 2026-11-15
+
+### Added
+- README Tour: a recording of byobu (tabs, the `Alt-D` popup searching every tab's text), screenshots of the prompt, tabs and `Alt-D`, and a recording of the installer, in `docs/media/` (made in a demo container).
+
+### Fixed
+- The installer no longer fails where `$USER` isn't set (containers, cron, some SSH sessions): it uses `id -un`.
+
 ## [3.1.3] - 2026-11-15
 
 ### Fixed
@@ -181,6 +189,7 @@ Existing machines: run `install.sh --packages --adopt` once (so removing a packa
 ### Added
 - Initial repo: zsh (antidote, replaces Prezto), Starship prompt and status config, byobu 4-row status bar, vim (vim-plug, replaces pathogen), Windows Terminal settings merge, `install.sh` with backup-then-link.
 
+[3.2.0]: https://github.com/spanthetree/dotfiles/compare/v3.1.3...v3.2.0
 [3.1.3]: https://github.com/spanthetree/dotfiles/compare/v3.1.2...v3.1.3
 [3.1.2]: https://github.com/spanthetree/dotfiles/compare/v3.1.1...v3.1.2
 [3.1.1]: https://github.com/spanthetree/dotfiles/compare/v3.1.0...v3.1.1

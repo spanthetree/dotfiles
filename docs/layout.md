@@ -17,7 +17,7 @@ Everything for Linux/WSL is in `linux/`, everything for Windows in `windows/`. T
 | `linux/git/delta.gitconfig` | included from `~/.gitconfig`: delta as git pager (identity stays per machine) |
 | `linux/install.sh`, `linux/install-fx.sh`, `linux/packages.py` | Linux/WSL installer, its look, and the package installer (also installs the Windows apps from WSL) |
 | `windows/install.ps1` | Windows bootstrap: apps, YASB, WSL, then the Linux installer inside WSL |
-| `docs/` | these docs, and `logo-v2.svg` (the README logo; renamed so browsers drop the old cached one) |
+| `docs/` | these docs, `media/` (README recordings and screenshots, from a demo container), and `logo-v2.svg` (the README logo; renamed so browsers drop the old cached one) |
 | `CLAUDE.md` | notes for AI agents: rules, release steps, testing, gotchas |
 
 The installer also clones tmux-resurrect and tmux-continuum into `~/.tmux/plugins`. Tabs autosave every 15 minutes and are restored when byobu starts (`bin/restore-tabs`).

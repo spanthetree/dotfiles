@@ -9,6 +9,24 @@ gh repo clone spanthetree/dotfiles ~/dotfiles
 
 New machine, options, and how to uninstall: see [install](docs/install.md).
 
+## Tour
+
+<p align="center">
+  <img src="docs/media/byobu.gif" alt="byobu with tabs for btop, lazygit, yazi and vim, then the Alt-D popup searching every tab's text and jumping to a match" width="100%">
+</p>
+
+| | |
+|:-:|:-:|
+| ![zsh with the Starship prompt and the byobu status bar](docs/media/terminal.png) | ![several byobu tabs, btop in front](docs/media/tabs.png) |
+| zsh, Starship and the 4-row byobu status bar | tabs, with the current one highlighted |
+| ![Alt-D popup listing every tab with a preview](docs/media/search-tabs.png) | ![Alt-D popup searching the text of every tab](docs/media/search-text.png) |
+| `Alt-D`: every tab in every session, with a preview | typing searches the text in every tab too |
+
+<details>
+<summary>The installer</summary>
+<p align="center"><img src="docs/media/installer.gif" alt="install.cmd --packages: themed sections, spinners with elapsed time, a check mark per step" width="100%"></p>
+</details>
+
 ## Docs
 
 | Doc | Covers |

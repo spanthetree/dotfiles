@@ -73,9 +73,9 @@ install_packages() {
   /usr/bin/python3 -I "$DOT/linux/packages.py" linux "${PKG_FLAGS[@]}"
   is_wsl && have winget.exe && /usr/bin/python3 -I "$DOT/linux/packages.py" windows "${PKG_FLAGS[@]}"
 
-  if [[ $(getent passwd "$USER" | cut -d: -f7) != */zsh ]]; then
+  if [[ $(getent passwd "$(id -un)" | cut -d: -f7) != */zsh ]]; then
     log "default shell -> zsh"
-    "${sudo[@]}" chsh -s "$(command -v zsh)" "$USER"
+    "${sudo[@]}" chsh -s "$(command -v zsh)" "$(id -un)"
   fi
 }
 
@@ -285,7 +285,7 @@ uninstall() {
   section system; uninstall_system
   printf '\n'
   log "done. Backups stay in ~/.dotfiles-backup; saved byobu tabs in ~/.local/share/tmux/resurrect"
-  if [[ $(getent passwd "$USER" | cut -d: -f7) == */zsh ]]; then log "default shell is still zsh; to change it: chsh -s /bin/bash"; fi
+  if [[ $(getent passwd "$(id -un)" | cut -d: -f7) == */zsh ]]; then log "default shell is still zsh; to change it: chsh -s /bin/bash"; fi
   log "to finish: rm -rf $DOT$(is_wsl && printf ' (and %%USERPROFILE%%\\dotfiles on Windows)')"
 }
 
