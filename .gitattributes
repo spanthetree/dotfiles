@@ -1,0 +1,4 @@
+# install.cmd is also a shell script; shell scripts must keep LF line endings even in a Windows clone
+install.cmd text eol=lf
+*.sh text eol=lf
+linux/byobu/bin/* text eol=lf

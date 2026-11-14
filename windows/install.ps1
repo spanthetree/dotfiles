@@ -1,14 +1,22 @@
 <#
 Windows bootstrap: Git, this repo, the apps under `windows:` in packages.yaml (winget), YASB config from this repo, WSL2 + a chosen
-Debian/Ubuntu distro, then clones this repo inside WSL and runs install.sh --packages.
+Debian/Ubuntu distro, then clones this repo inside WSL and runs install.cmd --packages there (linux/install.sh).
+From a clone: install.cmd in the repo root runs this script.
 
 Fresh machine (any PowerShell window):
-  irm https://raw.githubusercontent.com/spanthetree/dotfiles/main/install.ps1 -OutFile $env:TEMP\dotfiles.ps1
+  irm https://raw.githubusercontent.com/spanthetree/dotfiles/main/windows/install.ps1 -OutFile $env:TEMP\dotfiles.ps1
   powershell -ExecutionPolicy Bypass -File $env:TEMP\dotfiles.ps1
 
 Re-running is safe. If enabling WSL needs a reboot, setup resumes after you sign in again.
+
+Uninstall: install.cmd --uninstall (or -Uninstall; --yes / -Yes skips the questions). Runs the Linux uninstall in each
+WSL distro that has ~/dotfiles, then undoes what only this script did. WSL and its distros stay.
 #>
-param([string]$Distro)
+[CmdletBinding(PositionalBinding = $false)]
+param([string]$Distro, [switch]$Uninstall, [switch]$Yes, [Parameter(ValueFromRemainingArguments)][string[]]$Rest)
+# install.cmd passes Linux-style flags through
+if ($Rest -contains '--uninstall') { $Uninstall = [switch]$true }
+if ($Rest -contains '--yes') { $Yes = [switch]$true }
 
 $ErrorActionPreference = 'Stop'
 $RepoUrl   = 'https://github.com/spanthetree/dotfiles.git'
@@ -109,14 +117,61 @@ function Test-DistroInstalled([string]$Name) {
   return @(wsl --list --quiet 2>$null | ForEach-Object { $_.Trim() }) -contains $Name
 }
 
+function Uninstall-Dotfiles {
+  $flags = if ($Yes) { ' --yes' } else { '' }
+  # 1. Inside WSL: links, packages, the Windows apps it recorded, Windows Terminal, .wslconfig, YASB config
+  if (Test-WslReady) {
+    foreach ($d in @(wsl --list --quiet 2>$null | ForEach-Object { $_.Trim() } | Where-Object { $_ })) {
+      wsl -d $d --cd ~ -e sh -c 'test -x ~/dotfiles/install.cmd' *> $null
+      if ($LASTEXITCODE -ne 0) { continue }
+      Log "uninstalling inside $d"
+      wsl -d $d --cd ~ -e bash -lc "~/dotfiles/install.cmd --uninstall$flags"
+    }
+  }
+
+  # 2. YASB: no autostart, no config pointer at this clone
+  $yasbc = Join-Path $env:ProgramFiles 'YASB\yasbc.exe'
+  if (Test-Path $yasbc) { & $yasbc disable-autostart *> $null }
+  if ([Environment]::GetEnvironmentVariable('YASB_CONFIG_HOME', 'User')) {
+    [Environment]::SetEnvironmentVariable('YASB_CONFIG_HOME', $null, 'User')
+    Log 'YASB: YASB_CONFIG_HOME removed'
+  }
+
+  # 3. Windows apps still recorded (no WSL, or not removed there); Git stays, like the other core packages
+  $left = @(if (Test-Path $Record) { Get-Content $Record | Where-Object { $_ -and $_ -ne 'Git.Git' } })
+  if ($left.Count) {
+    Write-Host "`nWindows apps installed by dotfiles: $($left -join ', ')"
+    if ($Yes -or (Read-Host 'Uninstall them? [y/N]') -match '^[yY]') {
+      $kept = @(Get-Content $Record | Where-Object { $_ -eq 'Git.Git' })
+      foreach ($id in $left) {
+        Log "uninstalling $id"
+        winget uninstall -e --id $id --accept-source-agreements | Out-Host
+        if ($LASTEXITCODE -ne 0) { Write-Warning "$id uninstall failed; remove it by hand"; $kept += $id }
+      }
+      Set-Content $Record $kept
+    }
+  }
+
+  # 4. A pending resume after a WSL reboot
+  Remove-ItemProperty -Path $RunOnce -Name 'dotfiles-install' -ErrorAction SilentlyContinue
+
+  Log 'done. Left for you:'
+  Write-Host "  - delete the Windows clone: $WinClone"
+  Write-Host '  - remove a Linux distro and ALL its files, only if you want: wsl --unregister <name> (list: wsl -l)'
+}
+
 function Main {
   if (-not (Test-Admin)) {
     Log 'relaunching as administrator (needed to enable WSL)'
     $argList = @('-NoExit', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"")
     if ($Distro) { $argList += @('-Distro', $Distro) }
+    if ($Uninstall) { $argList += '-Uninstall' }
+    if ($Yes) { $argList += '-Yes' }
     Start-Process powershell -Verb RunAs -ArgumentList $argList
     return
   }
+
+  if ($Uninstall) { Uninstall-Dotfiles; return }
 
   # 1. Git first: the package list lives in the repo
   Install-WingetPackage 'Git.Git'
@@ -150,7 +205,7 @@ function Main {
     Write-Warning 'yasbc.exe not found; start YASB once by hand'
   }
 
-  # 4. Windows Terminal creates settings.json on first launch; install.sh patches it
+  # 4. Windows Terminal creates settings.json on first launch; the Linux installer patches it
   $wtSettings = Join-Path $env:LOCALAPPDATA 'Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json'
   if (-not (Test-Path $wtSettings)) {
     Log 'opening Windows Terminal once to create its settings'
@@ -163,7 +218,7 @@ function Main {
   if (-not (Test-WslReady)) {
     Log 'enabling WSL2'
     wsl --install --no-distribution
-    $resume = "powershell -NoProfile -ExecutionPolicy Bypass -File `"$WinClone\install.ps1`" -Distro $Distro"
+    $resume = "powershell -NoProfile -ExecutionPolicy Bypass -File `"$WinClone\windows\install.ps1`" -Distro $Distro"
     New-Item -Path $RunOnce -Force | Out-Null
     Set-ItemProperty -Path $RunOnce -Name 'dotfiles-install' -Value $resume
     Write-Host "`nReboot to finish enabling WSL. Setup continues after you sign in."
@@ -180,12 +235,12 @@ function Main {
     if (-not (Test-DistroInstalled $Distro)) { throw "$Distro did not install; re-run this script" }
   }
 
-  # 7. Inside WSL: clone and run install.sh (asks for your sudo password)
-  Log "running install.sh in $Distro"
+  # 7. Inside WSL: clone (or update) and run the Linux installer (asks for your sudo password)
+  Log "running install.cmd in $Distro"
   $bash = 'set -e; command -v git >/dev/null && command -v curl >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq git curl; }; ' +
-          "[ -d ~/dotfiles ] || git clone $RepoUrl ~/dotfiles; ~/dotfiles/install.sh --packages"
+          "if [ -d ~/dotfiles ]; then git -C ~/dotfiles pull --ff-only; else git clone $RepoUrl ~/dotfiles; fi; ~/dotfiles/install.cmd --packages"
   wsl -d $Distro --cd ~ -e bash -lc $bash
-  if ($LASTEXITCODE -ne 0) { throw "install.sh failed in $Distro (exit $LASTEXITCODE); fix and re-run" }
+  if ($LASTEXITCODE -ne 0) { throw "install.cmd failed in $Distro (exit $LASTEXITCODE); fix and re-run" }
 
   Log "done. Opening $Distro in Windows Terminal"
   Start-Process wt.exe -ArgumentList "wsl.exe -d $Distro"

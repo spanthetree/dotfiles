@@ -1,6 +1,6 @@
 # Self-check for install.ps1 helpers: powershell -NoProfile -ExecutionPolicy Bypass -File windows\test_install.ps1
 $ErrorActionPreference = 'Stop'
-. (Join-Path $PSScriptRoot '..\install.ps1')
+. (Join-Path $PSScriptRoot 'install.ps1')
 
 $sample = @(
   'The following is a list of valid distributions that can be installed.',

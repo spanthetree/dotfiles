@@ -2,6 +2,23 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [SemVer](https://semver.org/), tagged `vX.Y.Z`.
 
+## [3.0.0] - 2026-11-15
+
+### Changed
+- **Layout:** Linux/WSL files moved to `linux/` (byobu, git, starship, vim, zsh, `install.sh`, `packages.py`), Windows files to `windows/` (`install.ps1`, `terminal/`, `yasb/`). **Existing machines: run `./install.cmd` once after pulling** to re-point the links (old ones are replaced, not backed up) and git's delta include.
+- **One installer:** `install.cmd` in the root is a batch file and a shell script in one. Linux/WSL: `./install.cmd`. Windows: `install.cmd`. The bootstrap one-liner moved to `windows/install.ps1`.
+- README split into `docs/`: install, hotkeys, software, packages, layout, FAQ, development.
+
+### Added
+- `install.cmd --uninstall` (`--yes` to skip questions): uninstalls the packages and apt repos it installed, removes links and plugins, restores the originals from the oldest backup, and undoes the git, Windows Terminal, `.wslconfig` and YASB changes. On Windows it also runs inside each WSL distro with the repo, then cleans up the Windows side.
+- YASB from WSL: config in `%USERPROFILE%\.config\yasb`, autostart on, restart on changes (skipped when a Windows clone manages it).
+- `docs/hotkeys.md`: keys this repo defines first, then each app's defaults, and the keys byobu takes from apps.
+- `docs/software.md`: everything installed, with links. `docs/faq.md`.
+- `CLAUDE.md`: rules, release steps, testing and gotchas for AI agents. Contributing policy in the README.
+
+### Fixed
+- Plain mode (`--no-fx`) steps no longer read the terminal (vim plugin install could wait on it).
+
 ## [2.4.0] - 2026-11-15
 
 ### Added
@@ -144,6 +161,7 @@ Existing machines: run `install.sh --packages --adopt` once (so removing a packa
 ### Added
 - Initial repo: zsh (antidote, replaces Prezto), Starship prompt and status config, byobu 4-row status bar, vim (vim-plug, replaces pathogen), Windows Terminal settings merge, `install.sh` with backup-then-link.
 
+[3.0.0]: https://github.com/spanthetree/dotfiles/compare/v2.4.0...v3.0.0
 [2.4.0]: https://github.com/spanthetree/dotfiles/compare/v2.3.1...v2.4.0
 [2.3.1]: https://github.com/spanthetree/dotfiles/compare/v2.3.0...v2.3.1
 [2.3.0]: https://github.com/spanthetree/dotfiles/compare/v2.2.0...v2.3.0

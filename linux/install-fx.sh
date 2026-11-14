@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# install.sh look, SynthWave '84: gradient title and section headers, spinners on quiet steps.
+# linux/install.sh look, SynthWave '84: gradient title and section headers, spinners on quiet steps.
 # Off when stdout isn't a terminal, with --no-fx, or NO_FX=1 (plain text, step output shown as it runs).
 FX=1
 [[ -t 1 && -z ${NO_FX:-} && ${TERM:-dumb} != dumb ]] || FX=0
@@ -42,7 +42,7 @@ section() {
 # spin <label> <cmd...>: run it with a spinner and the elapsed time, then ✓ or ✗; output shown only if it fails
 spin() {
   local label=$1 out pid rc=0 i=0 t0=$SECONDS f='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'; shift
-  if (( ! FX )); then log "$label"; "$@"; return; fi
+  if (( ! FX )); then log "$label"; "$@" </dev/null; return; fi
   out=$(mktemp)
   "$@" >"$out" 2>&1 </dev/null & pid=$!
   printf '\033[?25l'

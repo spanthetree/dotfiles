@@ -1,4 +1,4 @@
-"""Self-check for merge.py: python3 -I windows-terminal/test_merge.py"""
+"""Self-check for merge.py: python3 -I windows/terminal/test_merge.py"""
 import json
 import os
 import sys

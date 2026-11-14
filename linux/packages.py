@@ -1,8 +1,9 @@
 #!/usr/bin/python3
-"""Install the packages listed in packages.yaml, and remove ones taken out of it. Called by install.sh --packages.
+"""Install the packages listed in packages.yaml, and remove ones taken out of it. Called by linux/install.sh --packages.
 
   packages.py linux   [--adopt] [--yes]   apt repos + packages, github/script installs, update/post hooks
   packages.py windows [--adopt] [--yes]   winget ids on the Windows host (run from WSL)
+  packages.py linux|windows --purge [--yes]   uninstall everything this installer recorded (install.cmd --uninstall)
 
 Removal: each machine records what this installer installed (linux: ~/.local/state/dotfiles/linux.json,
 windows: %LOCALAPPDATA%\\dotfiles\\windows.installed, shared with install.ps1). A recorded package that is no longer
@@ -14,7 +15,7 @@ import glob, io, json, os, platform, shlex, subprocess, sys, tarfile, threading,
 
 import yaml
 
-DOT = os.path.dirname(os.path.abspath(__file__))
+DOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # the repo
 HOME = os.path.expanduser('~')
 BIN = os.path.join(HOME, '.local', 'bin')
 STATE = os.path.join(os.environ.get('XDG_STATE_HOME', os.path.join(HOME, '.local', 'state')), 'dotfiles')
@@ -24,6 +25,7 @@ PROTECTED = {'git', 'curl', 'ca-certificates', 'gnupg', 'gpg', 'openssl', 'pytho
              'Git.Git'}
 ADOPT = '--adopt' in sys.argv
 YES = '--yes' in sys.argv
+PURGE = '--purge' in sys.argv  # as if packages.yaml were empty
 failed = []
 
 
@@ -214,7 +216,7 @@ def linux():
     arch = subprocess.run(['dpkg', '--print-architecture'], capture_output=True, text=True).stdout.strip()
     codename = subprocess.run(['bash', '-c', '. /etc/os-release && echo "$VERSION_CODENAME"'],
                               capture_output=True, text=True).stdout.strip()
-    every = load('linux')
+    every = [] if PURGE else load('linux')
     pkgs = [p for p in every if wanted(p)]
     path = os.path.join(STATE, 'linux.json')
     record = json.load(open(path)) if os.path.exists(path) else {}
@@ -226,7 +228,8 @@ def linux():
             except Exception as e:
                 warn(f'apt repo {p["repo"]["name"]}: {e}')
 
-    run('apt update', SUDO + ['apt-get', 'update', '-qq'])
+    if pkgs:
+        run('apt update', SUDO + ['apt-get', 'update', '-qq'])
     before = dpkg_installed()
     apt = []
     for i, p in enumerate(pkgs, 1):
@@ -237,9 +240,9 @@ def linux():
             apt.append(p['name'])
         else:
             warn(f'apt: {p["name"]} not available here, skipping')
-    if not run(f'apt packages ({len(apt)})', SUDO + ['env', 'DEBIAN_FRONTEND=noninteractive', 'apt-get', 'install', '-y', '-qq'] + apt):
+    if apt and not run(f'apt packages ({len(apt)})', SUDO + ['env', 'DEBIAN_FRONTEND=noninteractive', 'apt-get', 'install', '-y', '-qq'] + apt):
         failed.append('apt packages')
-    if (doc().get('settings') or {}).get('upgrade', False):
+    if pkgs and (doc().get('settings') or {}).get('upgrade', False):
         if not run('apt upgrade', SUDO + ['env', 'DEBIAN_FRONTEND=noninteractive', 'apt-get', 'upgrade', '-y', '-qq']):
             failed.append('apt upgrade')
     after = dpkg_installed()
@@ -330,6 +333,11 @@ def linux():
             else:
                 failed.append(f'uninstall {n}')
 
+    if PURGE:  # the apt repos it added
+        for r in [p['repo'] for p in load('linux') if 'repo' in p]:
+            files = [f'/usr/share/keyrings/{r["name"]}-archive-keyring.gpg', f'/etc/apt/sources.list.d/{r["name"]}.list']
+            if any(os.path.exists(f) for f in files):
+                run(f'apt repo {r["name"]} removed', SUDO + ['rm', '-f'] + files)
     os.makedirs(STATE, exist_ok=True)
     with open(path, 'w') as f:
         json.dump(record, f, indent=1, sort_keys=True)
@@ -350,7 +358,7 @@ def windows():
     path = os.path.join(subprocess.run(['wslpath', appdata], capture_output=True, text=True).stdout.strip(),
                         'dotfiles', 'windows.installed')
     record = set(open(path).read().split()) if os.path.exists(path) else set()
-    every = load('windows')
+    every = [] if PURGE else load('windows')
 
     for i, p in enumerate(every, 1):
         pid = p['id']
