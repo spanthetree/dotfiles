@@ -2,6 +2,30 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [SemVer](https://semver.org/), tagged `vX.Y.Z`.
 
+## [2.0.0] - 2026-11-14
+
+Existing machines: run `install.sh --packages --adopt` once (so removing a package from `packages.yaml` uninstalls it), then `wsl --shutdown` from Windows (mirrored networking).
+
+### Added
+- `packages.yaml`: every package for Linux and Windows in one file. Plain names for apt/winget; maps add an apt repo, a GitHub release binary, an install script, `skip_if`/`update`/`post`/`uninstall` steps, or `when: desktop|wsl`. Read by `packages.py` (Linux, and Windows under WSL) and `install.ps1` (via the `powershell-yaml` module).
+- Removing a package from `packages.yaml` uninstalls it on the next run, after a y/N prompt (`--yes` skips it). Only packages the installer installed are removed (record in `~/.local/state/dotfiles/` and `%LOCALAPPDATA%\dotfiles\`); `--adopt` records what's already installed; core packages are never removed. `settings.autoremove` also clears leftover apt dependencies.
+- Language tools as `tools:` under `go` (`go install`), `pyenv` (`uv tool install`) and `rbenv` (`gem install`).
+- Go: latest official release in `/usr/local/go`, upgraded each run; gopls.
+- Ruby: rbenv + ruby-build with Ruby 3.2, 3.4 (global) and 4.0; Ruby version in the byobu status row.
+- Tools: nmap, tcpdump, tshark, termshark, iperf3, ipcalc, mtr, dig, gh, kubectx, k9s, stern, lazygit, AWS CLI v2, shellcheck, delta, direnv, btop, ncdu, tldr.
+- Windows apps: Wireshark, Nmap, PowerToys, Sysinternals Suite, Everything.
+- WSL2 mirrored networking (`networkingMode=mirrored` in `.wslconfig`).
+- git uses delta as its pager (`git/delta.gitconfig`, included from `~/.gitconfig`); direnv hook in zsh; vim-terraform.
+
+### Changed
+- `install.sh --packages` keeps going when one package fails and lists failures at the end.
+- apt repo keys are refreshed every run.
+- `install.ps1` installs Git and clones the repo before reading the app list.
+- Proxy references removed from the docs.
+
+### Fixed
+- `libncursesw5-dev` (virtual on Ubuntu 24.04) replaced by `libncurses-dev`.
+
 ## [1.5.0] - 2026-11-13
 
 ### Added
@@ -65,6 +89,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [Sem
 ### Added
 - Initial repo: zsh (antidote, replaces Prezto), Starship prompt and status config, byobu 4-row status bar, vim (vim-plug, replaces pathogen), Windows Terminal settings merge, `install.sh` with backup-then-link.
 
+[2.0.0]: https://github.com/spanthetree/dotfiles/compare/v1.5.0...v2.0.0
 [1.5.0]: https://github.com/spanthetree/dotfiles/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/spanthetree/dotfiles/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/spanthetree/dotfiles/compare/v1.3.0...v1.4.0

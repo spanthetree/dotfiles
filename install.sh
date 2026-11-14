@@ -1,16 +1,20 @@
 #!/usr/bin/env bash
 # Install dotfiles by symlinking into $HOME. Safe to re-run.
 #   ./install.sh             link configs, bootstrap antidote + vim-plug, patch Windows Terminal (WSL)
-#   ./install.sh --packages  also install missing tools (Debian/Ubuntu only)
+#   ./install.sh --packages  also install missing tools from packages.yaml, uninstall removed ones (Debian/Ubuntu)
+#     --adopt   once per existing machine: treat everything already installed from packages.yaml as managed
+#     --yes     uninstall removed packages without asking
 set -euo pipefail
 
 DOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKUP="$HOME/.dotfiles-backup/$(date +%Y%m%d-%H%M%S)"
 PACKAGES=0
+PKG_FLAGS=()
 for arg in "$@"; do
   case $arg in
     --packages) PACKAGES=1 ;;
-    -h|--help) sed -n '2,4s/^# \{0,1\}//p' "$0"; exit 0 ;;
+    --adopt|--yes) PACKAGES=1; PKG_FLAGS+=("$arg") ;;
+    -h|--help) sed -n '2,6s/^# \{0,1\}//p' "$0"; exit 0 ;;
     *) echo "unknown option: $arg" >&2; exit 2 ;;
   esac
 done
@@ -41,153 +45,24 @@ link() {
 }
 
 # ---------------------------------------------------------------- packages
-apt_install() {
-  local sudo=() want=() pkg
-  [[ $EUID -ne 0 ]] && sudo=(sudo)
-  "${sudo[@]}" apt-get update -qq
-  for pkg in "$@"; do
-    if apt-cache show "$pkg" >/dev/null 2>&1; then want+=("$pkg"); else warn "apt: $pkg not available here, skipping"; fi
-  done
-  DEBIAN_FRONTEND=noninteractive "${sudo[@]}" apt-get install -y -qq "${want[@]}"
-}
-
 install_packages() {
   if ! have apt-get; then
-    warn "--packages supports Debian/Ubuntu only. Missing tools on this machine:"
-    local t
-    for t in zsh byobu tmux vim gpg rg starship zoxide eza bat fd pyenv uv kubectl helm terraform jq docker ansible xh claude codex opencode; do
-      have "$t" || warn "  $t"
-    done
+    warn "--packages supports Debian/Ubuntu only; install what you need from packages.yaml by hand"
     return 0
   fi
   local sudo=()
   [[ $EUID -ne 0 ]] && sudo=(sudo)
-  local arch; arch=$(dpkg --print-architecture)
-
-  # HashiCorp rotates its apt key (last 2026-09); refresh it every run so apt-get update keeps verifying
-  if [[ -f /etc/apt/sources.list.d/hashicorp.list ]]; then
-    curl -fsSL https://apt.releases.hashicorp.com/gpg | "${sudo[@]}" gpg --dearmor --yes -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+  # packages.py needs the system python3 + PyYAML (not pyenv's python) to read packages.yaml, and gpg for apt repo keys
+  if ! /usr/bin/python3 -c 'import yaml' 2>/dev/null || ! have gpg; then
+    "${sudo[@]}" apt-get update -qq
+    DEBIAN_FRONTEND=noninteractive "${sudo[@]}" apt-get install -y -qq python3 python3-yaml gnupg
   fi
-  log "apt packages"
-  apt_install git curl ca-certificates gnupg openssl unzip xclip \
-    zsh byobu tmux vim gpg ripgrep zoxide eza bat fd-find fzf virtualenvwrapper python3 \
-    jq yq httpie cloc tcptraceroute whois bgpq4 socat ansible \
-    build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev \
-    libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev
-
-  if ! have starship; then
-    log "starship"
-    curl -fsSL https://starship.rs/install.sh | sh -s -- -y -b "$HOME/.local/bin" >/dev/null
-  fi
-  if ! have uv; then
-    log "uv"
-    curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh >/dev/null
-  fi
-  if [[ ! -d $HOME/.pyenv ]]; then
-    log "pyenv"
-    git clone -q https://github.com/pyenv/pyenv.git "$HOME/.pyenv"
-  else
-    git -C "$HOME/.pyenv" pull -q --ff-only || warn "pyenv update failed; new Python versions may be missing"
-  fi
-  # Pythons: latest patch of each; 3.12 becomes global unless you already picked one
-  local pyenv=$HOME/.pyenv/bin/pyenv v
-  export PYENV_ROOT=$HOME/.pyenv
-  for v in 3.11 3.12 3.14; do
-    v=$("$pyenv" latest -k "$v")
-    [[ -d $HOME/.pyenv/versions/$v ]] || { log "python $v (builds from source, a few minutes)"; "$pyenv" install -s "$v"; }
-  done
-  if [[ $("$pyenv" global) == system ]]; then
-    "$pyenv" global "$("$pyenv" latest 3.12)"
-  fi
-  if [[ ! -d $HOME/.nvm ]]; then
-    log "nvm"
-    git clone -q https://github.com/nvm-sh/nvm.git "$HOME/.nvm"
-    git -C "$HOME/.nvm" -c advice.detachedHead=false checkout -q \
-      "$(git -C "$HOME/.nvm" describe --abbrev=0 --tags --match 'v[0-9]*' "$(git -C "$HOME/.nvm" rev-list --tags --max-count=1)")"
-  fi
-  if ! have kubectl; then
-    log "kubectl"
-    curl -fsSLo "$HOME/.local/bin/kubectl" \
-      "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release/stable.txt)/bin/linux/$arch/kubectl"
-    chmod +x "$HOME/.local/bin/kubectl"
-  fi
-  if ! have helm; then
-    log "helm"
-    curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 |
-      HELM_INSTALL_DIR="$HOME/.local/bin" USE_SUDO=false bash >/dev/null
-  fi
-  if ! have terraform; then
-    log "terraform"
-    local codename; codename=$(. /etc/os-release && echo "$VERSION_CODENAME")
-    curl -fsSL https://apt.releases.hashicorp.com/gpg | "${sudo[@]}" gpg --dearmor --yes -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
-    echo "deb [arch=$arch signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $codename main" |
-      "${sudo[@]}" tee /etc/apt/sources.list.d/hashicorp.list >/dev/null
-    apt_install terraform
-  fi
-
-  # Ubuntu's Docker; skipped when Docker CE/Desktop already provides it (packages conflict)
-  have docker || { log "docker"; apt_install docker.io docker-compose-v2 docker-buildx; }
-
-  # xh (HTTP client), also as `ht`; GitHub release, no apt package on Ubuntu 24.04
-  local m; m=$(uname -m)
-  if ! have xh; then
-    log "xh"
-    local xv; xv=$(curl -fsSLo /dev/null -w '%{url_effective}' https://github.com/ducaale/xh/releases/latest); xv=${xv##*/}
-    curl -fsSL "https://github.com/ducaale/xh/releases/download/$xv/xh-$xv-$m-unknown-linux-musl.tar.gz" |
-      tar xz -C "$HOME/.local/bin" --strip-components=1 "xh-$xv-$m-unknown-linux-musl/xh"
-  fi
-  [[ -e $HOME/.local/bin/ht ]] || ln -s xh "$HOME/.local/bin/ht"
-  if ! have codex; then
-    log "codex"
-    curl -fsSL "https://github.com/openai/codex/releases/latest/download/codex-$m-unknown-linux-musl.tar.gz" |
-      tar xz -O > "$HOME/.local/bin/codex"
-    chmod +x "$HOME/.local/bin/codex"
-  fi
-  if ! have claude; then
-    log "claude code"
-    curl -fsSL https://claude.ai/install.sh | bash >/dev/null
-  fi
-  if ! have opencode; then
-    log "opencode"
-    curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path >/dev/null
-  fi
-
-  # Docker without sudo (takes effect at next login)
-  if have docker && ! id -nG "$USER" | grep -qw docker; then
-    log "adding $USER to docker group"
-    "${sudo[@]}" usermod -aG docker "$USER"
-  fi
+  /usr/bin/python3 -I "$DOT/packages.py" linux "${PKG_FLAGS[@]}"
+  is_wsl && have winget.exe && /usr/bin/python3 -I "$DOT/packages.py" windows "${PKG_FLAGS[@]}"
 
   if [[ $(getent passwd "$USER" | cut -d: -f7) != */zsh ]]; then
     log "default shell -> zsh"
     "${sudo[@]}" chsh -s "$(command -v zsh)" "$USER"
-  fi
-
-  if is_wsl && have winget.exe; then
-    if ! ls /mnt/c/Windows/Fonts /mnt/c/Users/*/AppData/Local/Microsoft/Windows/Fonts 2>/dev/null | grep -qi '^JetBrainsMonoNerdFont'; then
-      log "JetBrainsMono Nerd Font (Windows)"
-      (cd /mnt/c && winget.exe install -e --id DEVCOM.JetBrainsMonoNerdFont \
-        --accept-source-agreements --accept-package-agreements) || warn "font install failed; install JetBrainsMono Nerd Font by hand"
-    fi
-  fi
-
-  # GUI apps: on the Windows host under WSL (WSL has no GUI); VS Code on Linux only with a desktop session.
-  # VS Code settings and extensions come from VS Code Settings Sync after sign-in.
-  if is_wsl; then
-    local id
-    for id in Microsoft.VisualStudioCode Anthropic.Claude Anomaly.OpenCode.Desktop; do
-      if have winget.exe && ! (cd /mnt/c && winget.exe list -e --id "$id" >/dev/null 2>&1); then
-        log "$id (Windows)"
-        (cd /mnt/c && winget.exe install -e --id "$id" \
-          --accept-source-agreements --accept-package-agreements) || warn "$id install failed; install it by hand"
-      fi
-    done
-  elif [[ -n ${XDG_CURRENT_DESKTOP:-}${DISPLAY:-}${WAYLAND_DISPLAY:-} ]] && ! have code; then
-    log "VS Code"
-    curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | "${sudo[@]}" gpg --dearmor --yes -o /usr/share/keyrings/microsoft-vscode.gpg
-    echo "deb [arch=amd64,arm64,armhf signed-by=/usr/share/keyrings/microsoft-vscode.gpg] https://packages.microsoft.com/repos/code stable main" |
-      "${sudo[@]}" tee /etc/apt/sources.list.d/vscode.list >/dev/null
-    apt_install code
   fi
 }
 
@@ -261,10 +136,37 @@ patch_windows_terminal() {
   python3 -I "$DOT/windows-terminal/merge.py" "$settings" "$DOT/windows-terminal/settings.patch.json"
 }
 
+# WSL2 mirrored networking: WSL shares Windows' interfaces, so nmap/tcpdump see the real LAN.
+# Takes effect after `wsl --shutdown`.
+configure_wsl() {
+  is_wsl && have cmd.exe || return 0
+  local f; f="$(wslpath "$(cd /mnt/c && cmd.exe /c 'echo %USERPROFILE%' 2>/dev/null | tr -d '\r')")/.wslconfig"
+  grep -qiE '^\s*networkingMode\s*=\s*mirrored' "$f" 2>/dev/null && return 0
+  [[ -f $f ]] && { mkdir -p "$BACKUP"; cp "$f" "$BACKUP/wslconfig"; }
+  if grep -qiE '^\s*networkingMode' "$f" 2>/dev/null; then
+    sed -i -E 's/^\s*networkingMode\s*=.*/networkingMode=mirrored/I' "$f"
+  elif grep -q '^\[wsl2\]' "$f" 2>/dev/null; then
+    sed -i '/^\[wsl2\]/a networkingMode=mirrored' "$f"
+  else
+    printf '[wsl2]\nnetworkingMode=mirrored\n' >> "$f"
+  fi
+  warn "WSL networking set to mirrored in $f; run 'wsl --shutdown' from Windows to apply"
+}
+
+# git: delta as pager via an include, so ~/.gitconfig (identity, credentials) stays per machine
+configure_git() {
+  have delta && have git || return 0
+  git config --global --get-all include.path 2>/dev/null | grep -qxF "$DOT/git/delta.gitconfig" && return 0
+  git config --global --add include.path "$DOT/git/delta.gitconfig"
+  log "git: delta pager"
+}
+
 [[ $PACKAGES -eq 1 ]] && install_packages
 retire_old_setup
 link_configs
 bootstrap_plugins
 patch_windows_terminal
+configure_wsl
+configure_git
 [[ -d $BACKUP ]] && log "backups in $BACKUP"
 log "done. Start a new terminal (or: exec zsh -l)"

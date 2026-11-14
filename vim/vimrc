@@ -1,6 +1,7 @@
 " Plugins: vim-plug (installer fetches plug.vim and runs :PlugInstall)
 call plug#begin('~/.vim/plugged')
 Plug 'mileszs/ack.vim'
+Plug 'hashivim/vim-terraform'
 Plug 'chase/vim-ansible-yaml'
 Plug 'vim-scripts/argtextobj.vim'
 Plug 'bkad/CamelCaseMotion'

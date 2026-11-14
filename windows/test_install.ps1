@@ -28,4 +28,11 @@ $list = @(
   [pscustomobject]@{ Name = 'Debian';       FriendlyName = 'Debian GNU/Linux' })
 if ((Get-LatestLtsIndex $list) -ne 3) { throw "latest LTS index: $(Get-LatestLtsIndex $list)" }
 if ((Get-LatestLtsIndex @($list[4])) -ne 0) { throw 'no LTS should fall back to 0' }
+# packages.yaml windows list: plain ids and maps with `id`, linux section ignored
+Install-YamlModule
+$tmp = Join-Path $env:TEMP 'dotfiles-test-packages.yaml'
+Set-Content $tmp @('linux:', '  - git', 'windows:', '  # comment', '  - Git.Git', '  - id: Foo.Font', '    font: Foo')
+$pk = @(Read-WindowsPackages $tmp)
+if (($pk -join ',') -ne 'Git.Git,Foo.Font') { throw "packages: $($pk -join ',')" }
+if (@(Read-WindowsPackages (Join-Path $PSScriptRoot '..\packages.yaml')) -notcontains 'Git.Git') { throw 'packages.yaml should list Git.Git' }
 'install.ps1 ok'

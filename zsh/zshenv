@@ -5,6 +5,7 @@
 export GOROOT=/usr/local/go
 export GOPATH=$HOME/go
 export PYENV_ROOT=$HOME/.pyenv
+export RBENV_ROOT=$HOME/.rbenv
 typeset -gU cdpath fpath mailpath path
 path=($HOME/.opencode/bin $GOPATH/bin $GOROOT/bin /usr/local/{bin,sbin} $path
-      $HOME/.cargo/bin $HOME/.local/bin $PYENV_ROOT/bin)
+      $HOME/.cargo/bin $HOME/.local/bin $PYENV_ROOT/bin $RBENV_ROOT/bin)

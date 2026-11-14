@@ -1,5 +1,5 @@
 <#
-Windows bootstrap: Windows Terminal, VS Code, Git, YASB (config from this repo), Claude Desktop, OpenCode Desktop, WSL2 + a chosen
+Windows bootstrap: Git, this repo, the apps under `windows:` in packages.yaml (winget), YASB config from this repo, WSL2 + a chosen
 Debian/Ubuntu distro, then clones this repo inside WSL and runs install.sh --packages.
 
 Fresh machine (any PowerShell window):
@@ -27,12 +27,33 @@ function Update-SessionPath {
   $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
 }
 
+# Apps this installer installed; packages.py (via install.sh in WSL) uninstalls them when removed from packages.yaml
+$Record = Join-Path $env:LOCALAPPDATA 'dotfiles\windows.installed'
+
 function Install-WingetPackage([string]$Id) {
   winget list -e --id $Id --accept-source-agreements *> $null
   if ($LASTEXITCODE -eq 0) { Log "$Id already installed"; return }
   Log "installing $Id"
-  winget install -e --id $Id --silent --accept-source-agreements --accept-package-agreements
-  if ($LASTEXITCODE -ne 0) { Write-Warning "$Id install failed (winget exit $LASTEXITCODE); install it by hand" }
+  winget install -e --id $Id --silent --accept-source-agreements --accept-package-agreements | Out-Host
+  if ($LASTEXITCODE -ne 0) { Write-Warning "$Id install failed (winget exit $LASTEXITCODE); install it by hand"; return }
+  New-Item -ItemType Directory -Force (Split-Path $Record) | Out-Null
+  if (-not ((Test-Path $Record) -and (Get-Content $Record) -contains $Id)) { Add-Content $Record $Id }
+}
+
+# YAML parser for packages.yaml (Windows PowerShell has none built in)
+function Install-YamlModule {
+  if (Get-Module -ListAvailable powershell-yaml) { return }
+  Log 'installing PowerShell module powershell-yaml'
+  Install-PackageProvider NuGet -MinimumVersion 2.8.5.201 -Scope CurrentUser -Force | Out-Null
+  Install-Module powershell-yaml -Scope CurrentUser -Force
+}
+
+# winget ids under the `windows:` key of packages.yaml; entries are an id or a map with `id`
+function Read-WindowsPackages([string]$Path) {
+  Import-Module powershell-yaml
+  foreach ($p in (ConvertFrom-Yaml (Get-Content $Path -Raw)).windows) {
+    if ($p -is [string]) { $p } else { $p.id }
+  }
 }
 
 # Parses `wsl --list --online`; keeps Debian/Ubuntu only, since install.sh uses apt.
@@ -97,11 +118,8 @@ function Main {
     return
   }
 
-  # 1. Windows apps
-  foreach ($id in 'Microsoft.WindowsTerminal', 'Microsoft.VisualStudioCode', 'Git.Git', 'AmN.yasb', 'DEVCOM.JetBrainsMonoNerdFont',
-               'Anthropic.Claude', 'Anomaly.OpenCode.Desktop') {
-    Install-WingetPackage $id
-  }
+  # 1. Git first: the package list lives in the repo
+  Install-WingetPackage 'Git.Git'
   Update-SessionPath
 
   # 2. Windows-side clone (YASB reads its config from here)
@@ -112,6 +130,11 @@ function Main {
     Log "cloning to $WinClone"
     git clone $RepoUrl $WinClone
   }
+
+  # Windows apps from packages.yaml
+  Install-YamlModule
+  foreach ($id in Read-WindowsPackages (Join-Path $WinClone 'packages.yaml')) { Install-WingetPackage $id }
+  Update-SessionPath
 
   # 3. YASB: config straight from the repo, start at sign-in
   $yasbConfig = Join-Path $WinClone 'windows\yasb'

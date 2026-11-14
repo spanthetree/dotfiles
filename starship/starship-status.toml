@@ -4,7 +4,7 @@
 add_newline = false
 command_timeout = 1200
 palette = "synthwave84"
-format = "$git_branch$git_status$python$golang$kubernetes$terraform"
+format = "$git_branch$git_status$python$ruby$golang$kubernetes$terraform"
 
 [palettes.synthwave84]
 fg = "#ffffff"
@@ -50,6 +50,11 @@ up_to_date = '[✓](green) '
 symbol = "󰌠 "
 style = "green"
 format = '[$symbol$version( \($virtualenv\)) ]($style)'
+
+[ruby]
+symbol = " "
+style = "red"
+format = "[$symbol$version ]($style)"
 
 [golang]
 symbol = "󰟓 "

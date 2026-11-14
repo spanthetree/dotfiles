@@ -1,5 +1,5 @@
 # ~/.zshrc: interactive shells.
-# Machine-specific settings (work proxy, kube contexts, etc.) go in ~/.zshrc.local (untracked).
+# Machine-specific settings (kube contexts, etc.) go in ~/.zshrc.local (untracked).
 # Secrets go in ~/.zsh_secrets.gpg (untracked, per machine).
 
 # --- Options (replaces Prezto's environment/history/directory/utility modules) ---
@@ -26,6 +26,9 @@ if (( $+widgets[history-substring-search-up] )); then
 fi
 # fzf: Ctrl-R fuzzy history, Ctrl-T file path (byobu takes Ctrl-T for new tab), Alt-C cd
 [[ -r /usr/share/doc/fzf/examples/key-bindings.zsh ]] && source /usr/share/doc/fzf/examples/key-bindings.zsh
+
+# direnv: per-folder env from .envrc (run `direnv allow` once per folder)
+(( $+commands[direnv] )) && eval "$(direnv hook zsh)"
 
 # --- Completion (after antidote so zsh-completions is on fpath) ---
 mkdir -p ~/.cache/zsh
@@ -90,6 +93,9 @@ if (( $+commands[pyenv] )); then
     eval "$(pyenv virtualenv-init -)"
   fi
 fi
+
+# --- Ruby: rbenv (per-folder version via .ruby-version) ---
+(( $+commands[rbenv] )) && eval "$(rbenv init - zsh)"
 export VIRTUALENVWRAPPER_PYTHON=/usr/bin/python3
 export WORKON_HOME=$HOME/Software/.virtualenvs
 export PROJECT_HOME=$HOME/Software/git
