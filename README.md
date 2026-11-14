@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/logo.svg" alt="dotfiles: SynthWave '84 terminal setup for WSL, Linux and Windows. zsh, byobu, starship, vim, Windows Terminal, YASB, modern CLI tools" width="780">
+  <img src="docs/logo-v2.svg" alt="dotfiles: SynthWave '84 terminal setup for WSL, Linux and Windows. zsh, byobu, starship, vim, Windows Terminal, YASB, modern CLI tools" width="780">
 </p>
 
 ```sh

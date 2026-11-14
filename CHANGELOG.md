@@ -2,6 +2,11 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [SemVer](https://semver.org/), tagged `vX.Y.Z`.
 
+## [3.1.3] - 2026-11-15
+
+### Fixed
+- README logo renamed to `docs/logo-v2.svg`, so browsers fetch the transparent version instead of a cached one.
+
 ## [3.1.2] - 2026-11-15
 
 ### Changed
@@ -176,6 +181,7 @@ Existing machines: run `install.sh --packages --adopt` once (so removing a packa
 ### Added
 - Initial repo: zsh (antidote, replaces Prezto), Starship prompt and status config, byobu 4-row status bar, vim (vim-plug, replaces pathogen), Windows Terminal settings merge, `install.sh` with backup-then-link.
 
+[3.1.3]: https://github.com/spanthetree/dotfiles/compare/v3.1.2...v3.1.3
 [3.1.2]: https://github.com/spanthetree/dotfiles/compare/v3.1.1...v3.1.2
 [3.1.1]: https://github.com/spanthetree/dotfiles/compare/v3.1.0...v3.1.1
 [3.1.0]: https://github.com/spanthetree/dotfiles/compare/v3.0.0...v3.1.0
