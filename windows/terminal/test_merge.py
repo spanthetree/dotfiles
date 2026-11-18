@@ -16,6 +16,7 @@ jsonc = """{
         "defaults": { "font": { "face": "Old", "weight": "bold" } },
         "list": [ { "guid": "{x}", "name": "Ubuntu" }, ],
     },
+    "keybindings": [ { "keys": "ctrl+shift+t", "id": "Terminal.OpenNewTab" } ],
     "schemes": [ { "name": "SynthWave '84", "background": "#000000" }, { "name": "Campbell" } ]
 }"""
 
@@ -31,6 +32,8 @@ with tempfile.TemporaryDirectory() as d:
     names = [x["name"] for x in s["schemes"]]
     assert names.count("SynthWave '84") == 1 and "Campbell" in names, names
     assert [x for x in s["schemes"] if x["name"] == "SynthWave '84"][0]["background"] == "#111018"
+    assert s["keybindings"] == [{"keys": "ctrl+t", "id": "Terminal.OpenNewTab"}, {"keys": "ctrl+shift+t", "id": "User.byobuNewTab"}]
+    assert [a["id"] for a in s["actions"]] == ["User.byobuNewTab"]
     assert s["$schema"].startswith("https://")  # comment stripping must not eat URLs
     mtime = os.path.getmtime(path)
     merge.main(path, PATCH)  # second run: no change, no write

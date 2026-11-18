@@ -1,6 +1,7 @@
 """Merge settings.patch.json into Windows Terminal's settings.json.
 
-Schemes are replaced by name; profiles.defaults keys are set (font merged key by key).
+Schemes are replaced by name; profiles.defaults keys are set (font merged key by key);
+actions are replaced by id and keybindings by keys.
 Machine-specific profiles are left alone. Writes only when something changed.
 Usage: python3 -I merge.py <settings.json> <settings.patch.json>
 """
@@ -30,6 +31,11 @@ def merge(settings, patch):
             defaults.setdefault(key, {}).update(value)
         else:
             defaults[key] = value
+    # Actions are replaced by id, keybindings by keys
+    for section, field in (("actions", "id"), ("keybindings", "keys")):
+        items = settings.setdefault(section, [])
+        for item in patch.get(section, []):
+            items[:] = [x for x in items if x.get(field) != item[field]] + [item]
     schemes = settings.setdefault("schemes", [])
     for scheme in patch["schemes"]:
         schemes[:] = [s for s in schemes if s.get("name") != scheme["name"]] + [scheme]

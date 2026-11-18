@@ -62,7 +62,7 @@ set -g 'status-format[0]' '#[bg=default,fill=default] '
 set -g 'status-format[1]' '#[bg=default,fill=default]#{E:status-left}#[list=on align=left]#[list=left-marker]#{E:@key}◀ #[list=right-marker]#{E:@key} ▶#[list=on]#{W:#[range=window|#{window_index}]#[#{?window_activity_flag,#{E:window-status-activity-style},#{E:window-status-style}}]#{E:window-status-format}#[norange]#[default],#[range=window|#{window_index}]#[list=focus]#[#{E:window-status-current-style}]#{E:window-status-current-format}#[norange]#[default]#[list=on]}#[nolist align=right] #{E:status-right}'
 # Row 2: starship-status.toml modules for the active pane's directory
 set -g 'status-format[2]' '#[bg=default,fill=default]#[align=centre]#($HOME/.config/byobu/bin/context-status #{q:pane_current_path})'
-set -g 'status-format[3]' '#[bg=default,fill=default]#[align=left]#[range=user|new]#{E:@key} ^T#{E:@hint} new #[norange]#[range=user|prev]#{E:@key} ^PgUp#{E:@hint} prev #[norange]#[align=centre]#($HOME/.config/byobu/bin/retrowave-status)  #[fg=#fede5d]󰥔 %H:%M:%S#[align=right]#[range=user|next]#{E:@hint} next #{E:@key}^PgDn #[norange]#[range=user|close]#{E:@hint} close #{E:@key}^W #[norange]'
+set -g 'status-format[3]' '#[bg=default,fill=default]#[align=left]#[range=user|new]#{E:@key} ^⇧T#{E:@hint} new #[norange]#[range=user|prev]#{E:@key} ^PgUp#{E:@hint} prev #[norange]#[align=centre]#($HOME/.config/byobu/bin/retrowave-status)  #[fg=#fede5d]󰥔 %H:%M:%S#[align=right]#[range=user|next]#{E:@hint} next #{E:@key}^PgDn #[norange]#[range=user|close]#{E:@hint} close #{E:@key}^W #[norange]'
 
 # Clicks: tabs select, row-2 hints act like their keys (close asks first)
 bind -n MouseDown1Status {
@@ -75,9 +75,13 @@ bind -n MouseDown1Status {
 }
 
 # Browser-style tab keys (byobu's F-keys and Alt-arrows still work).
-# In vim, Ctrl-T/Ctrl-W pass through to vim; elsewhere Ctrl-W asks before closing.
+# Ctrl-Shift-T: new tab (Windows Terminal sends it as ESC[116;6u; Ctrl-T is WT's own new tab).
+# In vim, Ctrl-W passes through to vim; elsewhere it asks before closing.
 set -g @in-vim '#{m/r:^(n?vim?|vimdiff|view)$,#{pane_current_command}}'
-bind -n C-t if -F '#{E:@in-vim}' { send-keys C-t } { new-window -c '#{pane_current_path}' }
+bind -n C-S-t new-window -c '#{pane_current_path}'
+# F2 renames the tab, F8 opens one (swapped from byobu's defaults)
+bind -n F2 command-prompt -p '(rename-window) ' "rename-window '%%'"
+bind -n F8 new-window -c '#{pane_current_path}'
 # Close confirm: Ctrl-W again or y closes, any other key cancels (a key table, since prompts treat Ctrl-W as delete-word)
 bind -n C-w if -F '#{E:@in-vim}' { send-keys C-w } { switch-client -T close-tab ; display -d 0 'Close tab? (y/n)' }
 bind -T close-tab C-w kill-pane

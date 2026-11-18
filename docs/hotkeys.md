@@ -14,7 +14,8 @@ Browser-style tab keys. Byobu's own F-keys and Alt-arrows still work.
 
 | Key | Does |
 |---|---|
-| `Ctrl-T` | new tab in the same folder (in vim: passed to vim) |
+| `Ctrl-Shift-T` / `F8` | new tab in the same folder (Windows Terminal sends `Ctrl-Shift-T` through; its own new tab is `Ctrl-T`) |
+| `F2` | rename the tab (swapped with byobu's `F8`) |
 | `Ctrl-W` `Ctrl-W` | close tab; the second `Ctrl-W` or `y` confirms, any other key cancels (in vim: passed to vim) |
 | `Ctrl-PgUp` / `Ctrl-PgDn` | previous / next tab |
 | `Alt-1` … `Alt-8`, `Alt-9` | go to tab N; `Alt-9` goes to the last tab |
@@ -30,8 +31,8 @@ In the `Alt-D` popup:
 |---|---|
 | type | filter tabs by session, name or folder; typing also searches the text in every pane, scrollback included (exact words; `!word` excludes) |
 | `Enter` | go to the tab; for a text match, scroll to that line in copy mode |
-| `Ctrl-T` | new tab right after the selected one |
-| `F8` | rename the selected tab |
+| `F8` | new tab right after the selected one |
+| `F2` | rename the selected tab |
 | `Alt-M` | move the selected tab to another session, or to a new one (type a name) |
 | `Ctrl-W` `Ctrl-W` | close the selected tab |
 | `Esc` / `Alt-D` | close the popup |
@@ -91,7 +92,7 @@ Leader is `,`.
 ## Clashes
 
 Inside byobu, these keys reach byobu first, so apps in a tab never see them:
-- `Ctrl-T`, `Ctrl-W` (except in vim), `Ctrl-S` (except vim, nano, Claude Code)
+- `Ctrl-Shift-T`, `F2`, `F8`, `Ctrl-W` (except in vim), `Ctrl-S` (except vim, nano, Claude Code)
 - `Alt-D` (zsh: delete word; use `Ctrl-Delete`), `Alt-1`…`Alt-9`, `Alt-Up/Down/Left/Right`, `Ctrl-PgUp/PgDn`, `Ctrl-Alt-Left/Right`
 - `F1`…`F9` and their Shift/Ctrl/Alt forms: vim's `F2` (NERDTree), `F8` (ctags) and `F9` only work outside byobu. Use `:NERDTreeToggle` inside it
 - `Shift-arrows`, `Alt-Shift-arrows` (pane moves and resizes)
@@ -105,12 +106,12 @@ Byobu runs tmux with the prefix `Ctrl-A`. Full list: `Shift-F1` (byobu help), `C
 
 | Key | Does |
 |---|---|
-| `F2` | new tab |
+| `F2` | new tab (this repo: rename, see above) |
 | `F3` / `F4` | previous / next tab |
 | `F5` | reload the config |
 | `F6` | detach (byobu keeps running) |
 | `F7` | copy mode: scroll and search back (keys below) |
-| `F8` | rename tab |
+| `F8` | rename tab (this repo: new tab) |
 | `F9` | byobu config menu |
 | `Shift-F2` / `Ctrl-F2` | split the pane top/bottom / side by side |
 | `Shift-arrows` | move to the pane in that direction |
@@ -194,7 +195,7 @@ Emacs keys (`bindkey -e`). Full list: `bindkey` in the shell.
 |---|---|
 | `Ctrl-R` | fuzzy history search |
 | `Alt-C` | fuzzy cd into a subfolder |
-| `Ctrl-T` | fuzzy file path (taken by byobu: use `**` below) |
+| `Ctrl-T` | fuzzy file path (taken by Windows Terminal: use `**` below) |
 | `**` `Tab` | fuzzy completion: `vim **<Tab>` files, `cd **<Tab>` folders, `kill -9 **<Tab>` processes, `ssh **<Tab>` hosts |
 
 In any fzf list (including `Alt-D`):
@@ -246,7 +247,7 @@ Defaults; full list: `Ctrl-,` → Actions.
 
 | Key | Does |
 |---|---|
-| `Ctrl-Shift-T` / `Ctrl-Shift-W` | new tab / close pane |
+| `Ctrl-T` / `Ctrl-Shift-W` | new tab (this repo; `Ctrl-Shift-T` goes to byobu) / close pane |
 | `Ctrl-Shift-N` | new window |
 | `Ctrl-Shift-D` | duplicate tab |
 | `Ctrl-Shift-1`…`9` | new tab with profile N |

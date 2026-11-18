@@ -2,7 +2,7 @@
 # Alt-d popup: find and manage tabs in every session. Empty query lists every tab, grouped by session (current first);
 # typing also searches the panes' text, scrollback included. The preview shows the tab's screen, or the lines around a
 # text match. Enter jumps there (a text match also scrolls to the line in copy mode). On the selected tab:
-# ctrl-t opens a new tab after it, f8 renames it (as byobu's F8 does), alt-m moves it to another session (bin/tab-move),
+# f8 opens a new tab after it, f2 renames it (as byobu's F8 / F2 do here), alt-m moves it to another session (bin/tab-move),
 # ctrl-w twice closes it.
 t=$(printf '\t')
 # shellcheck source=fzf-theme
@@ -93,9 +93,9 @@ esac
 hint() { printf '%b' "${C_KEY}$1${C_DIM} $2  "; }
 # shellcheck disable=SC2086  # FZF_THEME/FZF_LOOK are option lists
 out=$("$0" --list | fzf --ansi --exact --no-sort $FZF_LOOK "$FZF_THEME" --prompt='  ' --delimiter="$t" --with-nth=5 \
-  --header="$(hint enter jump; hint ctrl-t new; hint f8 rename; hint alt-m move; hint ctrl-w close; hint alt-d exit)" \
+  --header="$(hint enter jump; hint f8 new; hint f2 rename; hint alt-m move; hint ctrl-w close; hint alt-d exit)" \
   --preview "'$0' --preview {4} {3} {6..}" --preview-window 'down,50%,border-top' --listen \
-  --expect=ctrl-t,f8,alt-m --bind 'alt-d:abort' \
+  --expect=f8,f2,alt-m --bind 'alt-d:abort' \
   --bind "change:reload('$0' --list {q})+change-prompt(  )+execute-silent(rm -f '${XDG_RUNTIME_DIR:-/tmp}/byobu-tab-close')" \
   --bind "ctrl-w:transform-prompt('$0' --close {3})")
 key=$(printf '%s\n' "$out" | sed -n 1p); sel=$(printf '%s\n' "$out" | sed -n 2p)
@@ -104,10 +104,10 @@ key=$(printf '%s\n' "$out" | sed -n 1p); sel=$(printf '%s\n' "$out" | sed -n 2p)
 s=$(printf '%s' "$sel" | cut -f1); w=$(printf '%s' "$sel" | cut -f2); p=$(printf '%s' "$sel" | cut -f3)
 kind=$(printf '%s' "$sel" | cut -f4); line=$(printf '%s' "$sel" | cut -f6-)
 case $key in
-ctrl-t)  # new tab right after it, in its folder, and go there
+f8)  # new tab right after it, in its folder, and go there
   tmux new-window -a -t "=$s:$w" -c "$(tmux display -p -t "$p" '#{pane_current_path}')" \; switch-client -t "=$s"
   exit 0 ;;
-f8)  # rename in place (bash for an editable, prefilled line), then back to the list
+f2)  # rename in place (bash for an editable, prefilled line), then back to the list
   name=$(tmux display -p -t "$p" '#W')
   new=$(bash -c 'read -r -e -i "$1" -p "$2" n && printf %s "$n"' _ "$name" "$(printf '%b' "${C_DIM}rename ${C_SES}$s${C_DIM} tab ${C_FG}$w${C_DIM}: ${C_OFF}")")
   [ -n "$new" ] && tmux rename-window -t "$p" "$new"

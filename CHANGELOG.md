@@ -2,6 +2,12 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [SemVer](https://semver.org/), tagged `vX.Y.Z`.
 
+## [3.3.0] - 2026-11-18
+
+### Changed
+- Byobu: `Ctrl-Shift-T` opens a new tab (was `Ctrl-T`); `F2` renames the tab and `F8` opens one (swapped from byobu's defaults). The `Alt-D` popup follows: `F8` new tab, `F2` rename.
+- Windows Terminal: `Ctrl-T` opens a new tab, and `Ctrl-Shift-T` is sent through to byobu (as `ESC[116;6u`). `merge.py` now merges `actions` (by id) and `keybindings` (by keys).
+
 ## [3.2.0] - 2026-11-15
 
 ### Added
@@ -189,6 +195,7 @@ Existing machines: run `install.sh --packages --adopt` once (so removing a packa
 ### Added
 - Initial repo: zsh (antidote, replaces Prezto), Starship prompt and status config, byobu 4-row status bar, vim (vim-plug, replaces pathogen), Windows Terminal settings merge, `install.sh` with backup-then-link.
 
+[3.3.0]: https://github.com/spanthetree/dotfiles/compare/v3.2.0...v3.3.0
 [3.2.0]: https://github.com/spanthetree/dotfiles/compare/v3.1.3...v3.2.0
 [3.1.3]: https://github.com/spanthetree/dotfiles/compare/v3.1.2...v3.1.3
 [3.1.2]: https://github.com/spanthetree/dotfiles/compare/v3.1.1...v3.1.2

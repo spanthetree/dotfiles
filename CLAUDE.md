@@ -35,7 +35,7 @@ Semver: new feature = minor, fix = patch, a change that needs manual steps on ex
 - **tmux status list:** `#[list=focus]` only works when `#[list=on]` follows the focused item.
 - **tmux prompts:** inside `confirm-before`, `Ctrl-W` is delete-word. That's why "Ctrl-W twice closes" uses a key table (`close-tab`).
 - **tmux-continuum's auto-restore** skips when several Windows Terminal tabs start byobu at once. `bin/restore-tabs` replaces it: it renames byobu's startup session to the saved one, so restore goes into it with no stray session.
-- **Keys taken outside tmux:** `Alt-R` is taken by the NVIDIA overlay on the owner's machine, so rename in the Alt-D popup is `F8`. Check new global keys against [docs/hotkeys.md](docs/hotkeys.md#clashes).
+- **Keys taken outside tmux:** `Alt-R` is taken by the NVIDIA overlay on the owner's machine, so rename in the Alt-D popup is `F2`. Check new global keys against [docs/hotkeys.md](docs/hotkeys.md#clashes).
 - **winget `Microsoft.Sysinternals.Suite`** fails its hash check whenever Microsoft updates the unversioned zip. Use the Store id `9P7KNL5RWT25`.
 - **WSL mirrored networking:** NFS mounts need `noresvport`, or mounting hangs and WSL starts slowly.
 - **The owner's zsh** has `noclobber`: overwrite with `>|`.

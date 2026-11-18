@@ -6,6 +6,13 @@
       "opacity": 95
     }
   },
+  "actions": [
+    { "command": { "action": "sendInput", "input": "\u001b[116;6u" }, "id": "User.byobuNewTab" }
+  ],
+  "keybindings": [
+    { "keys": "ctrl+t", "id": "Terminal.OpenNewTab" },
+    { "keys": "ctrl+shift+t", "id": "User.byobuNewTab" }
+  ],
   "schemes": [
     {
       "name": "SynthWave '84",
