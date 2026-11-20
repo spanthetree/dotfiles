@@ -1,6 +1,6 @@
 <#
 Windows bootstrap: Git, this repo, the apps under `windows:` in packages.yaml (winget), YASB config from this repo, WSL2 + a chosen
-Debian/Ubuntu distro, then clones this repo inside WSL and runs install.cmd --packages there (linux/install.sh).
+Debian/Ubuntu distro, then clones this repo inside WSL and runs install.cmd there (linux/install.sh).
 From a clone: install.cmd in the repo root runs this script.
 
 Fresh machine (any PowerShell window):
@@ -268,7 +268,7 @@ function Main {
   # 7. Inside WSL: clone (or update) and run the Linux installer (asks for your sudo password)
   Log "running install.cmd in $Distro"
   $bash = 'set -e; command -v git >/dev/null && command -v curl >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq git curl; }; ' +
-          "if [ -d ~/dotfiles ]; then git -C ~/dotfiles pull --ff-only; else git clone $RepoUrl ~/dotfiles; fi; ~/dotfiles/install.cmd --packages"
+          "if [ -d ~/dotfiles ]; then git -C ~/dotfiles pull --ff-only; else git clone $RepoUrl ~/dotfiles; fi; ~/dotfiles/install.cmd"
   wsl -d $Distro --cd ~ -e bash -lc $bash
   if ($LASTEXITCODE -ne 0) { throw "install.cmd failed in $Distro (exit $LASTEXITCODE); fix and re-run" }
 

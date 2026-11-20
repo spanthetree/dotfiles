@@ -2,9 +2,9 @@
 
 [`packages.yaml`](../packages.yaml) is the one list for both systems: `linux:` (apt, apt repos, GitHub releases, install scripts) and `windows:` (winget ids). Its keys are documented at the top of the file.
 
-- **Add:** add a line, re-run `install.cmd --packages`.
+- **Add:** add a line, re-run `install.cmd`.
 - **Remove:** delete its line and re-run. The installer asks, then uninstalls it, but only if it installed it on that machine (recorded in `~/.local/state/dotfiles/linux.json` and `%LOCALAPPDATA%\dotfiles\windows.installed`).
-- **Existing machine:** run `install.cmd --packages --adopt` once, so what's already installed counts as managed.
+- **Existing machine:** run `install.cmd --adopt` once, so what's already installed counts as managed.
 - **Language tools:** list them under their language's entry as `tools:` (go: `go install`, pyenv: `uv tool install`, rbenv: `gem install`). They install after the language and leave with it.
 - **Updates:** each run upgrades apt packages (`settings.upgrade`) and re-downloads GitHub binaries in `~/.local/bin` when a newer release is out.
 

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Linux/WSL installer (run it through ../install.cmd): symlinks configs into $HOME. Safe to re-run.
-#   ./install.cmd             link configs, bootstrap antidote + vim-plug, patch Windows Terminal (WSL)
-#   ./install.cmd --packages  also install missing tools from packages.yaml, uninstall removed ones (Debian/Ubuntu)
+#   ./install.cmd             install missing tools from packages.yaml, uninstall removed ones (Debian/Ubuntu),
+#                             link configs, bootstrap antidote + vim-plug, patch Windows Terminal (WSL)
+#     --no-packages  skip the packages step (configs only)
 #     --adopt   once per existing machine: treat everything already installed from packages.yaml as managed
 #     --yes     uninstall removed packages without asking
 #   ./install.cmd --uninstall remove it all: links, plugins, settings, packages it installed (asks); restores backups
@@ -10,16 +11,17 @@ set -euo pipefail
 
 DOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"  # the repo
 BACKUP="$HOME/.dotfiles-backup/$(date +%Y%m%d-%H%M%S)"
-PACKAGES=0
+PACKAGES=1
 UNINSTALL=0
 PKG_FLAGS=()
 for arg in "$@"; do
   case $arg in
-    --packages) PACKAGES=1 ;;
-    --adopt|--yes) PACKAGES=1; PKG_FLAGS+=("$arg") ;;
+    --packages) ;;  # the default now; kept so older commands still work
+    --no-packages) PACKAGES=0 ;;
+    --adopt|--yes) PKG_FLAGS+=("$arg") ;;
     --uninstall) UNINSTALL=1 ;;
     --no-fx) NO_FX=1 ;;
-    -h|--help) sed -n '2,8s/^# \{0,1\}//p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,9s/^# \{0,1\}//p' "$0"; exit 0 ;;
     *) echo "unknown option: $arg" >&2; exit 2 ;;
   esac
 done
@@ -55,7 +57,7 @@ link() {
 # ---------------------------------------------------------------- packages
 install_packages() {
   if ! have apt-get; then
-    warn "--packages supports Debian/Ubuntu only; install what you need from packages.yaml by hand"
+    warn "packages: supports Debian/Ubuntu only; install what you need from packages.yaml by hand"
     return 0
   fi
   local sudo=()
@@ -102,9 +104,11 @@ LINKS=(
   linux/starship/starship-status.toml .config/starship-status.toml
   linux/byobu/profile.tmux            .config/byobu/profile.tmux
   linux/byobu/color.tmux              .config/byobu/color.tmux
+  linux/byobu/keybindings.tmux        .config/byobu/keybindings.tmux
   linux/byobu/backend                 .config/byobu/backend
   linux/byobu/bin                     .config/byobu/bin
   linux/vim/vimrc                     .vimrc
+  linux/terminator/config             .config/terminator/config
 )
 link_configs() {
   local i
@@ -235,7 +239,7 @@ uninstall_configs() {
   done
   command rm -rf "$HOME/.antidote" "$HOME/.zsh_plugins.zsh" "$HOME/.tmux/plugins/tmux-resurrect" \
     "$HOME/.tmux/plugins/tmux-continuum" "$HOME/.vim/plugged" "$HOME/.vim/autoload/plug.vim"
-  rmdir "$HOME/.vim/autoload" "$HOME/.vim" "$HOME/.tmux/plugins" "$HOME/.tmux" "$HOME/.config/byobu" 2>/dev/null || true
+  rmdir "$HOME/.vim/autoload" "$HOME/.vim" "$HOME/.tmux/plugins" "$HOME/.tmux" "$HOME/.config/byobu" "$HOME/.config/terminator" 2>/dev/null || true
   log "removed plugins (antidote, tmux-resurrect, tmux-continuum, vim-plug)"
   # what the links and the old-setup cleanup moved aside
   for ((i = 1; i < ${#LINKS[@]}; i += 2)); do restore "${LINKS[i]}"; done

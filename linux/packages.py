@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Install the packages listed in packages.yaml, and remove ones taken out of it. Called by linux/install.sh --packages.
+"""Install the packages listed in packages.yaml, and remove ones taken out of it. Called by linux/install.sh.
 
   packages.py linux   [--adopt] [--yes]   apt repos + packages, github/script installs, update/post hooks
   packages.py windows [--adopt] [--yes]   winget ids on the Windows host (run from WSL)

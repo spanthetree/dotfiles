@@ -1,5 +1,5 @@
 # Packages for every machine. Edit this file, then re-run the installer:
-#   linux:   ~/dotfiles/install.sh --packages   (Debian/Ubuntu; also installs the windows list under WSL)
+#   linux:   ~/dotfiles/install.sh   (Debian/Ubuntu; also installs the windows list under WSL)
 #   windows: install.ps1
 #
 # A plain string is a package name: apt package (linux) or winget id (windows).
@@ -27,7 +27,7 @@
 # Windows keys: id; font: font file prefix (a hand-installed font isn't listed by winget).
 #
 # Removing: delete the entry and re-run. The installer uninstalls it (after asking) if it installed it on this
-# machine. `install.sh --packages --adopt` once treats everything already installed from this list as its own.
+# machine. `install.sh --adopt` once treats everything already installed from this list as its own.
 
 settings:
   autoremove: true   # after uninstalling apt packages, also `apt-get autoremove` their leftover dependencies
@@ -116,6 +116,21 @@ linux:
   - name: scc    # cloc/tokei (tokei has no recent release binaries)
     github: boyter/scc
     asset: scc_Linux_{xarch}.tar.gz
+
+  - name: terminator   # terminal emulator; config in linux/terminator
+    when: desktop
+  - name: fontconfig   # fc-cache, for the font below
+    when: desktop
+  - name: jetbrainsmono-nerd-font   # Terminator's font; starship icons need a Nerd Font
+    when: desktop
+    skip_if: test -d ~/.local/share/fonts/JetBrainsMonoNerdFont
+    script: |
+      set -eo pipefail
+      tmp=$(mktemp -d) && mkdir -p ~/.local/share/fonts
+      curl -fsSL https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.tar.xz | tar -xJ -C "$tmp"
+      mv "$tmp" ~/.local/share/fonts/JetBrainsMonoNerdFont  # only once complete: skip_if tests this dir
+      fc-cache -f ~/.local/share/fonts
+    uninstall: rm -rf ~/.local/share/fonts/JetBrainsMonoNerdFont && fc-cache -f
 
   # dev
   - gh

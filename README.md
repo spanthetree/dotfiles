@@ -4,7 +4,7 @@
 
 ```sh
 gh repo clone spanthetree/dotfiles ~/dotfiles
-~/dotfiles/install.cmd --packages     # Linux or WSL; on Windows: install.cmd
+~/dotfiles/install.cmd                # Linux or WSL; on Windows: install.cmd
 ```
 
 New machine, options, and how to uninstall: see [install](docs/install.md).

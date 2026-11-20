@@ -1,16 +1,16 @@
 # FAQ
 
 **What does it change on my machine?**
-It symlinks configs into `~` (list in [layout](layout.md)), clones a few plugins, and with `--packages` installs the tools in [software](software.md). Under WSL it also merges a theme into Windows Terminal, sets mirrored networking in `.wslconfig`, and installs the Windows apps. Anything it replaces is moved to `~/.dotfiles-backup/<timestamp>/`. Nothing is deleted.
+It symlinks configs into `~` (list in [layout](layout.md)), clones a few plugins, installs the tools in [software](software.md). Under WSL it also merges a theme into Windows Terminal, sets mirrored networking in `.wslconfig`, and installs the Windows apps. Anything it replaces is moved to `~/.dotfiles-backup/<timestamp>/`. Nothing is deleted.
 
 **I don't like it. How do I undo it?**
 `install.cmd --uninstall`, on Linux, in WSL, or on Windows (see [install](install.md#uninstall)). It removes the links, plugins and settings, and puts back what was there before the first install. It also uninstalls the packages it installed (it asks first; `--yes` skips the question). Packages that were already on the machine stay. Your default shell stays zsh: `chsh -s /bin/bash` to change it. Then delete the clone. On Windows, add `--remove-wsl` to also delete the WSL distro(s) with the repo, and WSL itself if nothing else uses it. Backups stay in `~/.dotfiles-backup`.
 
 **Does it work on native Linux, not just WSL?**
-Yes. `./install.cmd` works the same. Steps for WSL and Windows are skipped. `--packages` needs Debian or Ubuntu (apt). On other distros, the configs still install. Install the tools you want by hand from [software](software.md).
+Yes. `./install.cmd` works the same. Steps for WSL and Windows are skipped. Installing packages needs Debian or Ubuntu (apt). On other distros, the configs still install. Install the tools you want by hand from [software](software.md).
 
 **macOS?**
-Not supported. The configs mostly work, but `--packages` needs apt.
+Not supported. The configs mostly work, but installing packages needs apt.
 
 **If I run it inside WSL, does it set up Windows too?**
 Yes. From WSL it installs the Windows apps with winget, merges the Windows Terminal theme, sets `.wslconfig`, and sets up YASB (config in `%USERPROFILE%\.config\yasb`, autostart on). Only installing WSL itself needs the Windows side (`install.cmd` from Windows, or the PowerShell one-liner in [install](install.md)). With a Windows clone, YASB reads its config straight from that clone instead.
@@ -25,10 +25,10 @@ Steps run behind spinners, where a sudo prompt would be hidden. It asks once and
 A failed step prints its last 20 lines. For everything, run it with `--no-fx`.
 
 **How do I update?**
-`git -C ~/dotfiles pull && ~/dotfiles/install.cmd --packages`. Each run also upgrades apt packages and the GitHub-release tools.
+`git -C ~/dotfiles pull && ~/dotfiles/install.cmd`. Each run also upgrades apt packages and the GitHub-release tools.
 
 **How do I add or remove a tool?**
-Edit [`packages.yaml`](../packages.yaml) and re-run with `--packages`. See [packages](packages.md).
+Edit [`packages.yaml`](../packages.yaml) and re-run `install.cmd`. See [packages](packages.md).
 
 **Where do my own settings and secrets go?**
 `~/.zshrc.local` for machine-only settings, `~/.zsh_secrets.gpg` for tokens. Neither is committed. See [install](install.md#per-machine-files-never-committed).

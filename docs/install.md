@@ -4,12 +4,12 @@
 
 ## Linux / WSL
 
-Native Linux or WSL. `--packages` needs Debian/Ubuntu (apt); on other distros only the configs install.
+Native Linux or WSL. Installing packages needs Debian/Ubuntu (apt); on other distros only the configs install.
 
 ```sh
 gh repo clone spanthetree/dotfiles ~/dotfiles
-~/dotfiles/install.cmd --packages   # first time: also installs tools (Debian/Ubuntu)
-~/dotfiles/install.cmd              # later: just re-link configs
+~/dotfiles/install.cmd               # installs tools (Debian/Ubuntu) and links configs
+~/dotfiles/install.cmd --no-packages # configs only
 ```
 
 Configs are symlinked, so editing `~/.zshrc` etc. edits this repo. Anything already in the way is moved to `~/.dotfiles-backup/<timestamp>/`, never deleted. Re-running is safe.
@@ -18,13 +18,13 @@ Update a machine: `git -C ~/dotfiles pull && ~/dotfiles/install.cmd`
 
 | Option | Does |
 |---|---|
-| `--packages` | also install missing tools from [`packages.yaml`](../packages.yaml), uninstall removed ones (see [packages](packages.md)) |
+| `--no-packages` | configs only: skip installing missing tools from [`packages.yaml`](../packages.yaml) and uninstalling removed ones (see [packages](packages.md)) |
 | `--adopt` | once per existing machine: treat everything from `packages.yaml` already installed as managed |
 | `--yes` | uninstall removed packages without asking |
 | `--uninstall` | remove it all (below) |
 | `--no-fx` | plain output with each step's full output (also `NO_FX=1`; the default when output isn't a terminal) |
 
-Output: themed section headers, and a spinner with elapsed time on each step (`✓`/`✗` when done; a failed step shows its last 20 lines). With `--packages`, sudo asks once at the start and stays fresh for the run.
+Output: themed section headers, and a spinner with elapsed time on each step (`✓`/`✗` when done; a failed step shows its last 20 lines). When it installs packages, sudo asks once at the start and stays fresh for the run.
 
 Under WSL it also:
 - merges the SynthWave '84 scheme and defaults into Windows Terminal's `settings.json` (backup first)
@@ -47,7 +47,7 @@ It asks for admin, then:
 1. Installs the `windows:` apps from `packages.yaml` with winget: Windows Terminal, VS Code, Git, YASB, Claude Desktop, OpenCode Desktop, PowerToys, Sysinternals, Everything, Wireshark, Nmap and JetBrainsMono Nerd Font. Wireshark/Nmap may show the Npcap setup window: click through it.
 2. Clones this repo to `%USERPROFILE%\dotfiles` and points YASB at `windows\yasb` (`YASB_CONFIG_HOME`), with autostart on.
 3. Asks which Debian/Ubuntu distro to install, enables WSL2 (reboots once if needed and resumes after sign-in), and installs the distro. Create your Linux user, then type `exit`.
-4. Inside WSL, clones this repo to `~/dotfiles` and runs `install.cmd --packages`.
+4. Inside WSL, clones this repo to `~/dotfiles` and runs `install.cmd`.
 
 With the repo already cloned on Windows, `install.cmd` from it does the same.
 
@@ -81,4 +81,4 @@ Left for you: `chsh -s /bin/bash` if you want another shell, and deleting the cl
 
 ## VS Code
 
-`install.cmd --packages` installs it (Windows host under WSL; Linux only with a desktop). Settings, extensions, keybindings and theme come from VS Code Settings Sync: sign in with GitHub. WSL extensions install automatically from the `remote.defaultExtensionsIfInstalledLocally` list in synced settings.
+`install.cmd` installs it (Windows host under WSL; Linux only with a desktop). Settings, extensions, keybindings and theme come from VS Code Settings Sync: sign in with GitHub. WSL extensions install automatically from the `remote.defaultExtensionsIfInstalledLocally` list in synced settings.

@@ -11,6 +11,7 @@ Everything for Linux/WSL is in `linux/`, everything for Windows in `windows/`. T
 | `linux/starship/starship-status.toml` | git/python/go/k8s/terraform, shown in byobu row 3; k8s contexts matching `prod` turn red |
 | `linux/byobu/` | `~/.config/byobu/`: 4-row status bar, pulsing active tab, clickable key hints |
 | `linux/byobu/bin/` | status scripts, `tab-search` (Alt-D popup), `tab-move`, `restore-tabs`, shared `fzf-theme` |
+| `linux/terminator/config` | `~/.config/terminator/config`: SynthWave '84 like Windows Terminal; login shell so byobu auto-starts |
 | `linux/vim/vimrc` | `~/.vimrc`; plugins via vim-plug into `~/.vim/plugged` |
 | `windows/terminal/` | `settings.patch.json` merged into Windows Terminal's `settings.json` from WSL (scheme + defaults only), by `merge.py` |
 | `windows/yasb/` | YASB status bar config, read in place via `YASB_CONFIG_HOME` |

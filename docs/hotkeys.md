@@ -96,13 +96,13 @@ Inside byobu, these keys reach byobu first, so apps in a tab never see them:
 - `Alt-D` (zsh: delete word; use `Ctrl-Delete`), `Alt-1`…`Alt-9`, `Alt-Up/Down/Left/Right`, `Ctrl-PgUp/PgDn`, `Ctrl-Alt-Left/Right`
 - `F1`…`F9` and their Shift/Ctrl/Alt forms: vim's `F2` (NERDTree), `F8` (ctags) and `F9` only work outside byobu. Use `:NERDTreeToggle` inside it
 - `Shift-arrows`, `Alt-Shift-arrows` (pane moves and resizes)
-- `Ctrl-A`: byobu's prefix. `Ctrl-A` `a` sends a real `Ctrl-A` to the app (zsh start of line: use `Home`)
+- `F12`: byobu's prefix (`Ctrl-A` is left to apps: zsh start of line)
 
 `Alt-Space`: YASB's quick launch and PowerToys Run share the default. Whichever starts first gets it; change one in its settings.
 
 ## byobu
 
-Byobu runs tmux with the prefix `Ctrl-A`. Full list: `Shift-F1` (byobu help), `Ctrl-A ?` (every tmux key).
+Byobu runs tmux with the prefix `F12` (this repo; byobu's "emacs mode", so `Ctrl-A` stays start of line). Full list: `Shift-F1` (byobu help), `F12 ?` (every tmux key).
 
 | Key | Does |
 |---|---|
@@ -135,7 +135,7 @@ Byobu runs tmux with the prefix `Ctrl-A`. Full list: `Shift-F1` (byobu help), `C
 | `Shift-F12` | turn byobu's F-keys off / on (for apps that need them) |
 | `Shift-F6` | detach without logging out |
 
-With the prefix (`Ctrl-A`, then the key):
+With the prefix (`F12`, then the key):
 
 | Key | Does |
 |---|---|
@@ -156,7 +156,7 @@ With the prefix (`Ctrl-A`, then the key):
 | `:` | tmux command prompt |
 | `?` | list every key |
 
-Copy mode (vi keys; `F7` or `Ctrl-A [` to enter):
+Copy mode (vi keys; `F7` or `F12 [` to enter):
 
 | Key | Does |
 |---|---|
@@ -175,7 +175,7 @@ Emacs keys (`bindkey -e`). Full list: `bindkey` in the shell.
 
 | Key | Does |
 |---|---|
-| `Ctrl-A` / `Ctrl-E` | start / end of line (`Ctrl-A` is byobu's prefix: use `Home`) |
+| `Ctrl-A` / `Ctrl-E` | start / end of line |
 | `Alt-B` / `Alt-F` | back / forward one word |
 | `Ctrl-U` | delete the whole line |
 | `Ctrl-K` | delete to the end of the line |
