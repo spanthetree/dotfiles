@@ -2,9 +2,9 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [SemVer](https://semver.org/), tagged `vX.Y.Z`.
 
-## [4.0.0] - 2026-11-20
+## [4.0.1] - 2026-11-20
 
-Replaces 3.3.0, which was withdrawn.
+Replaces 3.3.0 and 4.0.0, which were withdrawn.
 
 ### Changed
 - **Breaking:** `install.cmd` installs packages by default; `--no-packages` skips them. `--packages` is still accepted and does nothing.
@@ -15,6 +15,9 @@ Replaces 3.3.0, which was withdrawn.
 ### Added
 - Terminator (Linux desktops): installed, with a SynthWave '84 config (`linux/terminator/config`) matching Windows Terminal. It opens login shells, so byobu auto-starts.
 - JetBrainsMono Nerd Font on Linux desktops (`~/.local/share/fonts`), for Terminator and starship's icons.
+
+### Fixed
+- Ctrl-C during the installer: a running step stops too (it used to keep going in the background), the packages step finishes an interrupted dpkg (`dpkg --configure -a`) on the next run, and what was installed before the Ctrl-C is still recorded, so `--uninstall` removes it.
 
 ## [3.2.0] - 2026-11-15
 
@@ -203,7 +206,7 @@ Existing machines: run `install.sh --packages --adopt` once (so removing a packa
 ### Added
 - Initial repo: zsh (antidote, replaces Prezto), Starship prompt and status config, byobu 4-row status bar, vim (vim-plug, replaces pathogen), Windows Terminal settings merge, `install.sh` with backup-then-link.
 
-[4.0.0]: https://github.com/spanthetree/dotfiles/compare/v3.2.0...v4.0.0
+[4.0.1]: https://github.com/spanthetree/dotfiles/compare/v3.2.0...v4.0.1
 [3.2.0]: https://github.com/spanthetree/dotfiles/compare/v3.1.3...v3.2.0
 [3.1.3]: https://github.com/spanthetree/dotfiles/compare/v3.1.2...v3.1.3
 [3.1.2]: https://github.com/spanthetree/dotfiles/compare/v3.1.1...v3.1.2

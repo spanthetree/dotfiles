@@ -11,7 +11,7 @@ in packages.yaml is uninstalled after a y/N prompt (--yes skips it). Packages al
 recorded, so they are never removed, unless --adopt records everything in packages.yaml that is installed now.
 Core packages in PROTECTED are never removed. Keys are documented at the top of packages.yaml.
 """
-import glob, io, json, os, platform, shlex, subprocess, sys, tarfile, threading, time, urllib.request, zipfile
+import atexit, glob, io, json, os, platform, shlex, subprocess, sys, tarfile, threading, time, urllib.request, zipfile
 
 import yaml
 
@@ -220,6 +220,18 @@ def linux():
     pkgs = [p for p in every if wanted(p)]
     path = os.path.join(STATE, 'linux.json')
     record = json.load(open(path)) if os.path.exists(path) else {}
+    before, apt = None, []
+
+    def save():  # at exit, also on Ctrl-C, so what this run installed can still be uninstalled
+        if before is not None and apt:  # apt installs the loop below may not have reached
+            now = dpkg_installed()
+            for p in pkgs:
+                if p['name'] in apt and p['name'] in now and p['name'] not in before:
+                    record.setdefault(p['name'], {'kind': 'apt', 'uninstall': p.get('uninstall')})
+        os.makedirs(STATE, exist_ok=True)
+        with open(path, 'w') as f:
+            json.dump(record, f, indent=1, sort_keys=True)
+    atexit.register(save)
 
     for p in pkgs:
         if 'repo' in p:
@@ -338,9 +350,6 @@ def linux():
             files = [f'/usr/share/keyrings/{r["name"]}-archive-keyring.gpg', f'/etc/apt/sources.list.d/{r["name"]}.list']
             if any(os.path.exists(f) for f in files):
                 run(f'apt repo {r["name"]} removed', SUDO + ['rm', '-f'] + files)
-    os.makedirs(STATE, exist_ok=True)
-    with open(path, 'w') as f:
-        json.dump(record, f, indent=1, sort_keys=True)
 
 
 def font_installed(prefix):
@@ -358,6 +367,12 @@ def windows():
     path = os.path.join(subprocess.run(['wslpath', appdata], capture_output=True, text=True).stdout.strip(),
                         'dotfiles', 'windows.installed')
     record = set(open(path).read().split()) if os.path.exists(path) else set()
+
+    def save():  # at exit, also on Ctrl-C
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'w') as f:
+            f.write(''.join(f'{i}\n' for i in sorted(record)))
+    atexit.register(save)
     every = [] if PURGE else load('windows')
 
     for i, p in enumerate(every, 1):
@@ -382,10 +397,6 @@ def windows():
                 record.discard(pid)
             else:
                 failed.append(f'uninstall {pid}')
-
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, 'w') as f:
-        f.write(''.join(f'{i}\n' for i in sorted(record)))
 
 
 if __name__ == '__main__':

@@ -72,6 +72,8 @@ install_packages() {
     spin "apt update" "${sudo[@]}" apt-get update -qq
     spin "python3-yaml, gnupg" "${sudo[@]}" env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 python3-yaml gnupg
   fi
+  # a Ctrl-C mid-install leaves dpkg half done, and apt refuses to run until it is finished
+  if [[ -n $(ls -A /var/lib/dpkg/updates 2>/dev/null) ]]; then spin "dpkg --configure -a" "${sudo[@]}" dpkg --configure -a; fi
   /usr/bin/python3 -I "$DOT/linux/packages.py" linux "${PKG_FLAGS[@]}"
   is_wsl && have winget.exe && /usr/bin/python3 -I "$DOT/linux/packages.py" windows "${PKG_FLAGS[@]}"
 

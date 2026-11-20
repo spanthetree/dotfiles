@@ -44,7 +44,8 @@ spin() {
   local label=$1 out pid rc=0 i=0 t0=$SECONDS f='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'; shift
   if (( ! FX )); then log "$label"; "$@" </dev/null; return; fi
   out=$(mktemp)
-  "$@" >"$out" 2>&1 </dev/null & pid=$!
+  # bash makes background jobs ignore Ctrl-C; undo that, so Ctrl-C stops the step too instead of orphaning it
+  ( trap - INT QUIT; exec "$@" ) >"$out" 2>&1 </dev/null & pid=$!
   printf '\033[?25l'
   while kill -0 "$pid" 2>/dev/null; do
     printf '\r\033[2K  \033[38;2;255;126;219m%s%s %s %s%ds%s' "${f:i++ % 10:1}" "$RST" "$label" "$DIM" $(( SECONDS - t0 )) "$RST"
