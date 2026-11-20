@@ -12,6 +12,7 @@ Everything for Linux/WSL is in `linux/`, everything for Windows in `windows/`. T
 | `linux/byobu/` | `~/.config/byobu/`: 4-row status bar, pulsing active tab, clickable key hints |
 | `linux/byobu/bin/` | status scripts, `tab-search` (Alt-D popup), `tab-move`, `restore-tabs`, shared `fzf-theme` |
 | `linux/terminator/config` | `~/.config/terminator/config`: SynthWave '84 like Windows Terminal; login shell so byobu auto-starts |
+| `linux/kitty/dotfiles.conf` | only when kitty is installed (e.g. by a Hyprland desktop setup): linked to `~/.config/kitty/`, and `include dotfiles.conf` is added at the end of `kitty.conf`. Login shell, `TERM=xterm-256color`, kitty's shortcuts off except copy/paste, `Ctrl-Shift-T` sent to byobu. Theme and font stay in `kitty.conf` |
 | `linux/vim/vimrc` | `~/.vimrc`; plugins via vim-plug into `~/.vim/plugged` |
 | `windows/terminal/` | `settings.patch.json` merged into Windows Terminal's `settings.json` from WSL (scheme + defaults only), by `merge.py` |
 | `windows/yasb/` | YASB status bar config, read in place via `YASB_CONFIG_HOME` |

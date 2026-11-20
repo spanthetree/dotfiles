@@ -14,7 +14,7 @@ Browser-style tab keys. Byobu's own F-keys and Alt-arrows still work.
 
 | Key | Does |
 |---|---|
-| `Ctrl-Shift-T` / `F8` | new tab in the same folder (Windows Terminal sends `Ctrl-Shift-T` through; its own new tab is `Ctrl-T`) |
+| `Ctrl-Shift-T` / `F8` | new tab in the same folder (Windows Terminal and kitty send `Ctrl-Shift-T` through; Windows Terminal's own new tab is `Ctrl-T`) |
 | `F2` | rename the tab (swapped with byobu's `F8`) |
 | `Ctrl-W` `Ctrl-W` | close tab; the second `Ctrl-W` or `y` confirms, any other key cancels (in vim: passed to vim) |
 | `Ctrl-PgUp` / `Ctrl-PgDn` | previous / next tab |

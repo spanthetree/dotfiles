@@ -111,10 +111,14 @@ LINKS=(
   linux/byobu/bin                     .config/byobu/bin
   linux/vim/vimrc                     .vimrc
   linux/terminator/config             .config/terminator/config
+  linux/kitty/dotfiles.conf           .config/kitty/dotfiles.conf
 )
 link_configs() {
   local i
-  for ((i = 0; i < ${#LINKS[@]}; i += 2)); do link "${LINKS[i]}" "$HOME/${LINKS[i + 1]}"; done
+  for ((i = 0; i < ${#LINKS[@]}; i += 2)); do
+    [[ ${LINKS[i + 1]} == .config/kitty/* ]] && ! have kitty && continue  # kitty comes from elsewhere (desktop setup)
+    link "${LINKS[i]}" "$HOME/${LINKS[i + 1]}"
+  done
 }
 
 bootstrap_plugins() {
@@ -205,6 +209,17 @@ configure_git() {
   log "git: delta pager"
 }
 
+# kitty: include our dotfiles.conf last in kitty.conf, which stays the desktop setup's (theme, font)
+KITTY_CONF="$HOME/.config/kitty/kitty.conf"
+KITTY_INCLUDE="include dotfiles.conf"
+configure_kitty() {
+  have kitty || return 0
+  grep -qxF "$KITTY_INCLUDE" "$KITTY_CONF" 2>/dev/null && return 0
+  mkdir -p "$(dirname "$KITTY_CONF")"
+  printf '\n%s\n' "$KITTY_INCLUDE" >> "$KITTY_CONF"
+  log "kitty: dotfiles.conf included from kitty.conf"
+}
+
 # ---------------------------------------------------------------- uninstall
 # Undo everything above. Only removes what is ours (links into this repo, our plugin clones, packages this
 # installer recorded); everything it replaced comes back from the oldest backup, i.e. from before the first install.
@@ -252,6 +267,13 @@ uninstall_system() {
   if have git && git config --global --get-all include.path 2>/dev/null | grep -qxF "$DOT/linux/git/delta.gitconfig"; then
     git config --global --fixed-value --unset-all include.path "$DOT/linux/git/delta.gitconfig"
     log "git: delta pager include removed"
+  fi
+  if grep -qxF "$KITTY_INCLUDE" "$KITTY_CONF" 2>/dev/null; then
+    local rest; rest=$(grep -vxF "$KITTY_INCLUDE" "$KITTY_CONF" || true)
+    if [[ -z ${rest//[[:space:]]/} ]]; then command rm -f "$KITTY_CONF"  # only our line: we created it
+    else printf '%s\n' "$rest" >| "$KITTY_CONF"; fi
+    rmdir "$(dirname "$KITTY_CONF")" 2>/dev/null || true
+    log "kitty: include removed from kitty.conf"
   fi
   is_wsl && have cmd.exe || return 0
   local appdata profile settings f b
@@ -308,5 +330,6 @@ patch_windows_terminal
 configure_wsl
 configure_yasb
 configure_git
+configure_kitty
 [[ -d $BACKUP ]] && log "backups in $BACKUP"
 outro
