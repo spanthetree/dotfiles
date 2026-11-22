@@ -15,6 +15,8 @@
 #   update:  shell run on every run when already installed
 #   post:    shell run on every run after installing
 #   when:    desktop | wsl; install only on such machines
+#   interactive: true runs script/update/post/uninstall in the terminal, without the spinner, so a prompt
+#            the step can't avoid (e.g. a tool that runs sudo itself and asks again) is seen and answered
 #   tools:   (go, pyenv, rbenv entries only) tools installed with that language's own installer, after it.
 #            Each is a name, or {name, version}. Removing a line uninstalls that tool.
 #              go:    go install <module path>@<version, default latest>   -> ~/go/bin
@@ -119,7 +121,7 @@ linux:
 
   - name: terminator   # terminal emulator; config in linux/terminator
     when: desktop
-  - name: fontconfig   # fc-cache, for the font below
+  - name: fontconfig   # fc-cache, for the fonts below
     when: desktop
   - name: jetbrainsmono-nerd-font   # Terminator's font; starship icons need a Nerd Font
     when: desktop
@@ -130,7 +132,89 @@ linux:
       curl -fsSL https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.tar.xz | tar -xJ -C "$tmp"
       mv "$tmp" ~/.local/share/fonts/JetBrainsMonoNerdFont  # only once complete: skip_if tests this dir
       fc-cache -f ~/.local/share/fonts
-    uninstall: rm -rf ~/.local/share/fonts/JetBrainsMonoNerdFont && fc-cache -f
+    uninstall: rm -rf ~/.local/share/fonts/JetBrainsMonoNerdFont && { ! command -v fc-cache >/dev/null || fc-cache -f; }   # fontconfig may be removed first
+  - name: kitty   # terminal emulator; config in linux/kitty (dotfiles.conf: byobu keys, theme.conf: the look)
+    when: desktop
+  - name: fantasquesansmono-nerd-font   # kitty's font (linux/kitty/theme.conf)
+    when: desktop
+    # a Hyprland desktop setup may have installed it already (its own copy and its own uninstall): then skipped
+    skip_if: test -d ~/.local/share/fonts/FantasqueSansMNerdFont || fc-list | grep -q 'FantasqueSansM Nerd Font Mono'
+    script: |
+      set -eo pipefail
+      tmp=$(mktemp -d) && mkdir -p ~/.local/share/fonts
+      curl -fsSL https://github.com/ryanoasis/nerd-fonts/releases/latest/download/FantasqueSansMono.tar.xz | tar -xJ -C "$tmp"
+      mv "$tmp" ~/.local/share/fonts/FantasqueSansMNerdFont  # only once complete: skip_if tests this dir
+      fc-cache -f ~/.local/share/fonts
+    uninstall: rm -rf ~/.local/share/fonts/FantasqueSansMNerdFont && { ! command -v fc-cache >/dev/null || fc-cache -f; }   # fontconfig may be removed first
+  - name: hyprbars   # Hyprland title bars: drag to move, minimize/maximize/close; settings in linux/hypr/dotfiles.lua
+    when: desktop
+    interactive: true   # hyprpm runs sudo itself, and can ask for the password again
+    # installed = built and enabled (a failed build is listed too, as "enabled: Plugin failed to build")
+    skip_if: >-
+      ! command -v hyprpm >/dev/null ||
+      hyprpm list 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | grep -A1 'Plugin hyprbars$' | grep -q 'enabled: true'
+    # hyprpm builds against the system's Hyprland headers: on Ubuntu those of its libraries come from the same PPA,
+    # they need C++23 (<print>), which Ubuntu 24.04's default g++ 13 lacks (so g++-14 there), and they include glslang
+    # and lua 5.4 headers that the PPA's hyprland.pc doesn't list (so nothing adds lua's include dir: CPATH does).
+    # Elsewhere the default g++, the one the PPA builds Hyprland with: a plugin from another g++ can crash Hyprland
+    # as it loads (std::format's internals differ). hyprpm's build hash leaves the compiler out, so after an Ubuntu
+    # upgrade it would keep the old build: update forces a rebuild when the plugin's g++ isn't today's.
+    script: |
+      set -e
+      sudo apt-get install -y -qq g++-14 glslang-dev liblua5.4-dev libhyprutils-dev libaquamarine-dev libhyprlang-dev libhyprcursor-dev libhyprgraphics-dev libxcb-errors-dev
+      CXX=g++; [ "$(g++ -dumpversion | cut -d. -f1)" -ge 14 ] || CXX=g++-14
+      export CXX CPATH=/usr/include/lua5.4${CPATH:+:$CPATH}
+      hyprpm update
+      if hyprpm list 2>/dev/null | grep -q hyprland-plugins; then hyprpm update -f; else hyprpm add https://github.com/hyprwm/hyprland-plugins; fi
+      hyprpm enable hyprbars
+      [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || hyprpm reload   # outside Hyprland: dotfiles.lua loads it at login
+      hyprpm list | sed 's/\x1b\[[0-9;]*m//g' | grep -A1 'Plugin hyprbars$' | grep -q 'enabled: true' ||
+        { echo "hyprbars didn't build: 'hyprpm -v update -f' shows why"; exit 1; }
+    update: |   # rebuilds it after a Hyprland update, or with -f after a compiler change
+      command -v hyprpm >/dev/null || exit 0
+      # its build packages too: an Ubuntu upgrade (or a Hyprland reinstall) can remove them
+      missing=$(for p in g++-14 glslang-dev liblua5.4-dev libhyprutils-dev libaquamarine-dev libhyprlang-dev libhyprcursor-dev libhyprgraphics-dev libxcb-errors-dev; do
+        dpkg-query -W -f='${db:Status-Abbrev}' "$p" 2>/dev/null | grep -q '^ii' || echo "$p"; done)
+      [ -z "$missing" ] || { echo "hyprbars: installing" $missing; sudo apt-get install -y -qq $missing; }
+      CXX=g++; [ "$(g++ -dumpversion | cut -d. -f1)" -ge 14 ] || CXX=g++-14
+      so=/var/cache/hyprpm/$(id -un)/hyprland-plugins/hyprbars.so force=
+      # .comment holds e.g. "GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0"; --version the same from "("
+      if [ ! -f "$so" ]; then
+        echo "hyprbars isn't built (a failed build leaves none): rebuilding"; force=-f
+      elif ! readelf -p .comment "$so" 2>/dev/null | grep -qF "$("$CXX" --version | head -1 | sed 's/^[^(]*//')"; then
+        echo "hyprbars was built with another g++: rebuilding"; force=-f
+      fi
+      CXX=$CXX CPATH=/usr/include/lua5.4 hyprpm update $force
+    uninstall: >-
+      hyprpm disable hyprbars; hyprpm remove https://github.com/hyprwm/hyprland-plugins; hyprpm reload;
+      sudo apt-get remove -y -qq g++-14 glslang-dev liblua5.4-dev libhyprutils-dev libaquamarine-dev libhyprlang-dev libhyprcursor-dev libhyprgraphics-dev libxcb-errors-dev
+  # Japanese input under Hyprland: fcitx5 + Mozc, Ctrl-Space (started in linux/hypr/dotfiles.lua). GNOME keeps ibus
+  # (ibus-mozc below): with ibus installed, im-config's automatic choice stays ibus. Only where Hyprland is.
+  - {name: fcitx5, when: desktop, skip_if: &no-hyprland '! command -v Hyprland >/dev/null'}
+  - {name: fcitx5-mozc, when: desktop, skip_if: *no-hyprland}
+  # GTK 3/4 and Qt 5/6 modules, for XWayland and older apps. The metapackage itself: removing one of its parts
+  # by name would make apt mark the other parts manual, and autoremove would leave them
+  - {name: fcitx5-frontend-all, when: desktop, skip_if: *no-hyprland}
+  - {name: fcitx5-config-qt, when: desktop, skip_if: *no-hyprland}       # fcitx5-configtool: input methods, keys
+  # Japanese input under Ubuntu's GNOME: ibus + Mozc, Ctrl-Space too (input sources and key set by linux/install.sh)
+  - {name: ibus-mozc, when: desktop, skip_if: '! command -v gnome-shell >/dev/null'}
+  - name: hyprshell   # Hyprland Alt-Tab switcher + launcher; config in linux/hyprshell, started by linux/hypr/dotfiles.lua
+    when: desktop
+    # Needs GTK 4.18+, libadwaita 1.8+ and gtk4-layer-shell 1.1.1+ (Ubuntu 26.04 on), and Hyprland 0.57+ (it binds its
+    # keys through the Lua config; Ubuntu 26.04's own Hyprland is 0.53, the PPA's is newer): skipped before, and the
+    # rofi Alt-Tab/launcher stay. Built with cargo (Rust 1.92+; 26.04's cargo is 1.93) into ~/.local/bin.
+    skip_if: >-
+      [ -x ~/.local/bin/hyprshell ] || ! command -v Hyprland >/dev/null ||
+      ! dpkg --compare-versions "$(Hyprland --version | awk 'NR == 1 {print $2}')" ge 0.57 ||
+      dpkg --compare-versions "$(apt-cache policy libgtk-4-1 | awk '/Candidate:/ {print $2}')" lt 4.18   # the GTK apt offers
+    script: |
+      set -e
+      sudo apt-get install -y -qq cargo pkg-config libgtk-4-dev libadwaita-1-dev libgtk4-layer-shell-dev
+      cargo install --locked --root ~/.local hyprshell
+    update: "[ ! -x ~/.local/bin/hyprshell ] || cargo install --locked --root ~/.local hyprshell"   # a no-op when current
+    uninstall: >-
+      { cargo uninstall --root ~/.local hyprshell || rm -f ~/.local/bin/hyprshell; } &&
+      sudo apt-get remove -y -qq cargo libgtk-4-dev libadwaita-1-dev libgtk4-layer-shell-dev
 
   # dev
   - gh
@@ -251,6 +335,9 @@ linux:
       done
       [ "$("$pyenv" global)" != system ] || "$pyenv" global "$("$pyenv" latest 3.12)"
     uninstall: rm -rf ~/.pyenv   # also deletes every pyenv Python and virtualenv
+    tools:
+      - ptpython   # nicer Python REPLs (aliases ptpy, bpy in linux/zsh/zsh_aliases)
+      - bpython
 
   # ruby: rbenv + ruby-build with 3.2 (EOL 2026-03), 3.4 (global unless you picked one) and 4.0
   - autoconf

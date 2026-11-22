@@ -1,0 +1,24 @@
+# hyprshell (Hyprland window switcher + launcher). Only used when it's installed: the hyprshell entry in
+# packages.yaml builds it where GTK is 4.18+ (Ubuntu 26.04 on). Linked to ~/.config/hyprshell/config.toml;
+# linux/hypr/dotfiles.lua starts it with -c (its default file is config.ron) and leaves these keys to it.
+# Check after editing: hyprshell -c ~/.config/hyprshell/config.toml config check
+# Unknown keys are an error; anything left out takes hyprshell's default.
+
+version = 4   # hyprshell's config format (CURRENT_CONFIG_VERSION as of v4.10); a newer hyprshell migrates it
+
+# Alt-Tab: every window, most recently used first (an empty filter_by = no filter; the default is the current monitor)
+[windows.switch]
+modifier = "alt"
+key = "Tab"
+filter_by = []
+switch_workspaces = false
+
+# Super-Space: overview of the windows with the launcher (apps, calculator, web search, power actions),
+# in place of rofi. Tapping Super and Super-A stay the desktop setup's overview (drag windows between workspaces).
+[windows.overview]
+modifier = "super"
+key = "space"
+filter_by = []
+
+[windows.overview.launcher]
+default_terminal = "kitty"

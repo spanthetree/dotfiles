@@ -14,3 +14,7 @@ fi
 # Auto-start byobu. Opt out per machine: touch ~/.config/byobu/disable-autolaunch
 # Skipped inside tmux: byobu tabs are login shells too, and the launcher would nest or exit
 [[ -z $TMUX ]] && { _byobu_sourced=1 . /usr/bin/byobu-launch 2>/dev/null || true; }
+
+# The Hyprland desktop setup's copy.sh appends "source /etc/profile" (for flatpak paths on Debian) unless this file
+# already mentions it, as this line does. Not needed here: on Ubuntu the login session already sets those paths, and
+# it would run /etc/profile.d's sh scripts (byobu's launcher among them) a second time under zsh.

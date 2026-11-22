@@ -70,14 +70,22 @@ def done(label, ok=True):  # ✓/✗ for a step started with status(label)
     say(f'  {CYAN + "✓" if ok else YELL + "✗"}{RST} {label}' + (f' {DIM}{secs}s{RST}' if secs else ''))
 
 
-def run(label, cmd, **kw):
-    """Run cmd (a list, or a bash string) as one step: spinner, then ✓/✗; output only if it fails. True if it worked."""
+def run(label, cmd, interactive=False, **kw):
+    """Run cmd (a list, or a bash string) as one step: spinner, then ✓/✗; output only if it fails. True if it worked.
+    interactive: no spinner, the terminal stays attached, so prompts it can't avoid (sudo) are seen and answered."""
     if isinstance(cmd, str):
         cmd = ['bash', '-c', cmd]
     if not FX:
         log(label)
         return subprocess.run(cmd, **kw).returncode == 0
     prev = SPIN['text']
+    if interactive:
+        status('')
+        log(label)
+        ok = subprocess.run(cmd, **kw).returncode == 0
+        done(label, ok)
+        status(prev)
+        return ok
     status(label)
     r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, **kw)
     done(label, r.returncode == 0)
@@ -269,7 +277,7 @@ def linux():
                 mine = mine or (name in after and (ADOPT or name not in before))
             elif skip(p):
                 mine = mine or ADOPT
-                if 'update' in p and not run(f'{name} update', p['update']):
+                if 'update' in p and not run(f'{name} update', p['update'], p.get('interactive', False)):
                     warn(f'{name}: update failed')
                 # our GitHub binaries: fetch again when a newer release is out (not one installed some other way)
                 if k == 'github' and os.path.exists(os.path.join(BIN, name)):
@@ -285,10 +293,10 @@ def linux():
                     status(f'{name} {tag}')
                     github_install(p, arch, tag)
                     done(f'{name} {tag}')
-                elif not run(name, p['script']):
+                elif not run(name, p['script'], p.get('interactive', False)):
                     raise RuntimeError('install script failed')
                 mine = True
-            if 'post' in p and not run(f'{name} setup', p['post']):
+            if 'post' in p and not run(f'{name} setup', p['post'], p.get('interactive', False)):
                 warn(f'{name}: post step failed')
         except Exception as e:
             warn(f'{name}: {e}')
@@ -296,6 +304,8 @@ def linux():
             continue  # no language, no tools
         if mine:  # keep how to uninstall it, since its entry is gone once it's removed from packages.yaml
             record[name] = {'kind': k, 'uninstall': p.get('uninstall')}
+            if p.get('interactive'):
+                record[name]['interactive'] = True
             if tag:
                 record[name]['tag'] = tag
         for tid, check, install, uninstall in tools(p):
@@ -331,7 +341,7 @@ def linux():
             if r['kind'] == 'tool':  # gone already counts as removed
                 ok = run(f'uninstall {n}', r['uninstall']) or not quiet(['bash', '-c', r['check']])
             elif r['uninstall']:
-                ok = run(f'uninstall {n}', r['uninstall'])
+                ok = run(f'uninstall {n}', r['uninstall'], r.get('interactive', False))
             elif r['kind'] == 'github':
                 if os.path.exists(os.path.join(BIN, n)):
                     os.remove(os.path.join(BIN, n))

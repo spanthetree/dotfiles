@@ -2,7 +2,7 @@
 
 The first section lists the keys this repo defines. After it are the main default keys of each app it installs. Each app section ends with where to find that app's full list.
 
-- [Custom keys](#custom-keys): byobu, zsh, vim, YASB
+- [Custom keys](#custom-keys): byobu, zsh, vim, YASB, Hyprland
 - [Clashes](#clashes): keys byobu takes before apps see them
 - Defaults: [byobu](#byobu) · [zsh](#zsh) · [fzf](#fzf) · [vim](#vim) · [Windows Terminal](#windows-terminal) · [TUI tools](#tui-tools) · [AI CLIs](#ai-clis) · [Windows apps](#windows-apps)
 
@@ -14,12 +14,12 @@ Browser-style tab keys. Byobu's own F-keys and Alt-arrows still work.
 
 | Key | Does |
 |---|---|
-| `Ctrl-Shift-T` / `F8` | new tab in the same folder (Windows Terminal and kitty send `Ctrl-Shift-T` through; Windows Terminal's own new tab is `Ctrl-T`) |
+| `Ctrl-Shift-T` / `F8` | new tab in the same folder (Windows Terminal and kitty send `Ctrl-Shift-T` through; their own new tab is `Ctrl-T`) |
 | `F2` | rename the tab (swapped with byobu's `F8`) |
 | `Ctrl-W` `Ctrl-W` | close tab; the second `Ctrl-W` or `y` confirms, any other key cancels (in vim: passed to vim) |
 | `Ctrl-PgUp` / `Ctrl-PgDn` | previous / next tab |
 | `Alt-1` … `Alt-8`, `Alt-9` | go to tab N; `Alt-9` goes to the last tab |
-| `Ctrl-Alt-Left` / `Ctrl-Alt-Right` | move the current tab left / right |
+| `Ctrl-Alt-PgUp` / `Ctrl-Alt-PgDn` | move the current tab left / right (`Ctrl-Alt-Left/Right` switch workspaces in GNOME and Hyprland) |
 | `Alt-D` | tab popup for every session (below); `Alt-D` again closes it |
 | `Ctrl-S` | save tabs now (in vim, nano and Claude Code: passed to the app) |
 | `Ctrl-F7` | start / stop logging this pane to `~/logs/` |
@@ -89,16 +89,36 @@ Leader is `,`.
 |---|---|
 | `Alt-Space` | quick launch (apps, files, `*` prefix for more) |
 
+### Hyprland (`linux/hypr/dotfiles.lua`)
+
+Only on top of a Hyprland desktop setup; its own keys are in its `Super-Shift-K` menu. Changed or added. Where hyprshell is installed (Ubuntu 26.04 on), it takes `Alt-Tab` (its switcher) and `Super-Space` (its overview with launcher, calculator, web search) instead of the rofi versions:
+
+| Key | Does |
+|---|---|
+| `Super-Space` | app launcher (rofi), like YASB's `Alt-Space` on Windows. Floating moved to `Super-Shift-Space` |
+| `Super` (tap) | overview, like GNOME's Activities (also `Super-A`) |
+| `Alt-Tab` / `Alt-Shift-Tab` | as in GNOME: a tap goes to the previous (Shift: least recent) window at once. Keep `Alt` held and press `Tab` again for the list of every window, most recently used first; `Tab`/`Shift-Tab` move, releasing `Alt` picks |
+| `Super-Tab` / `Super-Shift-Tab` | next / previous workspace (group switching is no longer on these) |
+| `Ctrl-Alt-Right` / `Ctrl-Alt-Left` | next / previous workspace, as in GNOME |
+| `Super-Shift-U` | minimize (also the `–` title-bar button and apps' own minimize buttons) |
+| `Super-U` | restore a minimized window, to the current workspace (also a click on the waybar count) |
+| `Alt-F4` | close window (also `Super-Q`) |
+| `Super-L` | lock (also `Ctrl-Alt-L`) |
+| `Super-E` | file manager (the desktop setup's, unchanged) |
+| `Ctrl-Space` | Japanese input on/off (fcitx5 + Mozc). The same on GNOME (ibus + Mozc; set by the installer, was `Super-Space`) |
+
 ## Clashes
 
 Inside byobu, these keys reach byobu first, so apps in a tab never see them:
 - `Ctrl-Shift-T`, `F2`, `F8`, `Ctrl-W` (except in vim), `Ctrl-S` (except vim, nano, Claude Code)
-- `Alt-D` (zsh: delete word; use `Ctrl-Delete`), `Alt-1`…`Alt-9`, `Alt-Up/Down/Left/Right`, `Ctrl-PgUp/PgDn`, `Ctrl-Alt-Left/Right`
+- `Alt-D` (zsh: delete word; use `Ctrl-Delete`), `Alt-1`…`Alt-9`, `Alt-Up/Down/Left/Right`, `Ctrl-PgUp/PgDn`, `Ctrl-Alt-PgUp/PgDn`
 - `F1`…`F9` and their Shift/Ctrl/Alt forms: vim's `F2` (NERDTree), `F8` (ctags) and `F9` only work outside byobu. Use `:NERDTreeToggle` inside it
 - `Shift-arrows`, `Alt-Shift-arrows` (pane moves and resizes)
 - `F12`: byobu's prefix (`Ctrl-A` is left to apps: zsh start of line)
 
 `Alt-Space`: YASB's quick launch and PowerToys Run share the default. Whichever starts first gets it; change one in its settings.
+
+Under Hyprland and GNOME, `Ctrl-Space` is the input-method switch (fcitx5, ibus), so apps never see it (vim's and zsh's defaults don't use it). Hyprland's binds also come before rofi, which is why the `Alt-Tab` switcher runs inside an empty submap.
 
 ## byobu
 
@@ -195,7 +215,7 @@ Emacs keys (`bindkey -e`). Full list: `bindkey` in the shell.
 |---|---|
 | `Ctrl-R` | fuzzy history search |
 | `Alt-C` | fuzzy cd into a subfolder |
-| `Ctrl-T` | fuzzy file path (taken by Windows Terminal: use `**` below) |
+| `Ctrl-T` | fuzzy file path (taken by Windows Terminal and kitty: use `**` below) |
 | `**` `Tab` | fuzzy completion: `vim **<Tab>` files, `cd **<Tab>` folders, `kill -9 **<Tab>` processes, `ssh **<Tab>` hosts |
 
 In any fzf list (including `Alt-D`):

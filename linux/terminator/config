@@ -1,4 +1,7 @@
 # Terminator: SynthWave '84, matching Windows Terminal (windows/terminal/settings.patch.json)
+# Old and new option names both: Terminator ignores the ones it doesn't know (2.1.3 on Ubuntu 24.04 uses cursor_color
+# and global title_hide_sizetext; 2.1.5 on 26.04 uses cursor_bg_color + cursor_color_default and the profile's).
+# Saving its preferences rewrites this file (through the link) without the comments and the unknown names.
 [global_config]
   title_hide_sizetext = True
 [keybindings]
@@ -12,6 +15,9 @@
     foreground_color = "#ffffff"
     cursor_color = "#36f9f6"
     cursor_color_fg = False
+    cursor_bg_color = "#36f9f6"
+    cursor_color_default = False
+    title_hide_sizetext = True
     background_type = transparent
     background_darkness = 0.95
     scrollbar_position = hidden

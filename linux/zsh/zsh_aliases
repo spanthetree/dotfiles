@@ -28,7 +28,7 @@ alias dkb="docker build"
 alias dkp="docker pull"
 alias dkps="docker ps -a"
 alias dki="docker images"
-alias dkc="docker-compose"
+alias dkc="docker compose"   # Compose v2 (docker-compose-v2 in packages.yaml)
 
 # k8s aliases
 alias kc="kubectl"

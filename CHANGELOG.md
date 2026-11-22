@@ -2,6 +2,30 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [SemVer](https://semver.org/), tagged `vX.Y.Z`.
 
+## [4.2.0] - 2026-11-22
+
+### Added
+- Hyprland (when installed, e.g. by a Hyprland desktop setup on Ubuntu 26.04 with Hyprland 0.55+ from ppa:cppiber/hyprland): `linux/hypr/dotfiles.lua`, loaded from the end of the desktop setup's `UserConfigs/user_keybinds.lua`, adds GNOME habits on top of tiling. `Super-Space` launcher, tap `Super` for the overview, GNOME-style `Alt-Tab`, `Super-Tab` and `Ctrl-Alt-Left/Right` for workspaces, `Alt-F4`, click to focus, minimize and restore (`Super-Shift-U` / `Super-U`, apps' own minimize buttons, a waybar count), and workspace 10 floating. It also starts the dock at login. `linux/hypr/windows.sh` does the window switching and minimizing. Keys in `docs/hotkeys.md`.
+- hyprbars title bars (drag, maximize, minimize, close), built with hyprpm. The update step rebuilds them when the compiler changed (e.g. after an Ubuntu upgrade, when an old build crashes Hyprland) and reinstalls their build packages if an upgrade removed them.
+- hyprshell (Ubuntu 26.04 on: GTK 4.18+, Hyprland 0.57+): `Alt-Tab` switcher and `Super-Space` overview with launcher, built with cargo; config in `linux/hyprshell/config.toml`.
+- Japanese input: fcitx5 + Mozc under Hyprland, and ibus + Mozc on Ubuntu's GNOME with the input-source switch moved to `Ctrl-Space` (`--uninstall` puts the old GNOME settings back). The same key in both.
+- kitty is installed on Linux desktops, with `linux/kitty/theme.conf`: SynthWave '84 colours as in Windows Terminal and Terminator, FantasqueSansM Nerd Font Mono 14 (also installed), 0.9 opacity, opening at 134 × 43 cells. It is included from both kitty configs kitty reads, so GNOME and Hyprland look the same.
+- VS Code under Hyprland: `"password-store": "gnome-libsecret"` in `~/.vscode/argv.json`, so it finds the keyring.
+- ptpython and bpython (pyenv tools), for the `ptpy` and `bpy` aliases.
+- `packages.yaml`: `interactive: true` runs a step in the terminal, without the spinner, so a sudo prompt it can't avoid is seen.
+
+### Changed
+- Byobu: `Ctrl-Alt-PgUp` / `Ctrl-Alt-PgDn` move the current tab (was `Ctrl-Alt-Left/Right`, which GNOME and Hyprland use to switch workspaces).
+- The installer asks for the sudo password once per run, even when a step (hyprpm) drops sudo's cached password.
+- `dkc` runs `docker compose` (Compose v2, which `packages.yaml` installs) instead of `docker-compose`.
+- kitty: the include line is now `include ~/.config/kitty/dotfiles.conf` (re-running the installer replaces the old one).
+
+### Fixed
+- Terminator 2.1.5 (Ubuntu 26.04): the cursor colour and hidden size text use its new option names too.
+- `~/.zprofile` mentions `/etc/profile`, so the Hyprland desktop setup no longer appends `source /etc/profile` (which ran byobu's launcher a second time).
+- Font uninstalls no longer fail when fontconfig was removed first.
+- The desktop setup's waybar opens its wallpaper menu at a path it doesn't ship: the installer links it, so the clicks work.
+
 ## [4.1.0] - 2026-11-21
 
 Replaces 3.3.0, 4.0.0 and 4.0.1, which were withdrawn.
@@ -207,6 +231,7 @@ Existing machines: run `install.sh --packages --adopt` once (so removing a packa
 ### Added
 - Initial repo: zsh (antidote, replaces Prezto), Starship prompt and status config, byobu 4-row status bar, vim (vim-plug, replaces pathogen), Windows Terminal settings merge, `install.sh` with backup-then-link.
 
+[4.2.0]: https://github.com/spanthetree/dotfiles/compare/v4.1.0...v4.2.0
 [4.1.0]: https://github.com/spanthetree/dotfiles/compare/v3.2.0...v4.1.0
 [3.2.0]: https://github.com/spanthetree/dotfiles/compare/v3.1.3...v3.2.0
 [3.1.3]: https://github.com/spanthetree/dotfiles/compare/v3.1.2...v3.1.3

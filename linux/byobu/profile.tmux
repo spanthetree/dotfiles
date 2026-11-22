@@ -92,9 +92,10 @@ set -g @keeps-c-s '#{m/r:^(n?vim?|vimdiff|view|nano|claude)$,#{pane_current_comm
 bind -n C-s if -F '#{E:@keeps-c-s}' { send-keys C-s } { run-shell '~/.tmux/plugins/tmux-resurrect/scripts/save.sh' }
 bind -n C-PPage previous-window
 bind -n C-NPage next-window
-# Ctrl-Alt-Left/Right move the current tab (byobu's Ctrl-Shift-F3/F4 still work)
-bind -n C-M-Left swap-window -d -t :-1
-bind -n C-M-Right swap-window -d -t :+1
+# Ctrl-Alt-PgUp/PgDn move the current tab (byobu's Ctrl-Shift-F3/F4 still work). Not Ctrl-Alt-Left/Right: GNOME and
+# Hyprland (linux/hypr/dotfiles.lua) switch workspaces with those
+bind -n C-M-PPage swap-window -d -t :-1
+bind -n C-M-NPage swap-window -d -t :+1
 # Alt-1..8 jump to that tab, Alt-9 to the last one
 bind -n M-1 select-window -t :1
 bind -n M-2 select-window -t :2

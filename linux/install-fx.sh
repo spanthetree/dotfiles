@@ -7,7 +7,8 @@ FX=1
 FX_COLS=$(tput cols 2>/dev/null || echo 80)
 PINK=(255 126 219) PURP=(184 147 206) CYAN=(54 249 246)
 RST=$'\033[0m' DIM=$'\033[38;2;169;155;189m'
-if (( FX )); then trap 'printf "\033[?25h"' EXIT; fi  # cursor back even on Ctrl-C mid-spin
+fx_exit() { if (( FX )); then printf '\033[?25h'; fi; }  # cursor back even on Ctrl-C mid-spin
+trap fx_exit EXIT
 
 # grad <text> [from] [to]: text in a color gradient (default pink to cyan)
 grad() {
