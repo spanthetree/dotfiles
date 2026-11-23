@@ -7,6 +7,8 @@ gh repo clone spanthetree/dotfiles ~/dotfiles
 ~/dotfiles/install.cmd                # Linux or WSL; on Windows: install.cmd
 ```
 
+SynthWave '84 dotfiles for WSL, Linux and Windows, from one installer: zsh, byobu, Starship and vim in the terminal, the CLI tools in [`packages.yaml`](packages.yaml), Windows Terminal and YASB on Windows. On a Linux desktop also kitty and Japanese input, plus two opt-in desktops with the same keys and look: Hyprland (`--hyprland`) and COSMIC (`--cosmic`). `--uninstall` undoes all of it.
+
 New machine, options, and how to uninstall: see [install](docs/install.md).
 
 ## Tour
@@ -24,15 +26,15 @@ New machine, options, and how to uninstall: see [install](docs/install.md).
 
 <details>
 <summary>The installer</summary>
-<p align="center"><img src="docs/media/installer.gif" alt="install.cmd --packages: themed sections, spinners with elapsed time, a check mark per step" width="100%"></p>
+<p align="center"><img src="docs/media/installer.gif" alt="install.cmd: themed sections, spinners with elapsed time, a check mark per step" width="100%"></p>
 </details>
 
 ## Docs
 
 | Doc | Covers |
 |---|---|
-| [Install](docs/install.md) | Linux/WSL and new-Windows-machine installs, options, uninstall, per-machine files, VS Code |
-| [Hotkeys](docs/hotkeys.md) | keys this repo adds, then each app's defaults (byobu, zsh, fzf, vim, Windows Terminal, TUI tools, AI CLIs, Windows apps) |
+| [Install](docs/install.md) | Linux/WSL and new-Windows-machine installs, options, the Hyprland and COSMIC desktops, uninstall, per-machine files, VS Code |
+| [Hotkeys](docs/hotkeys.md) | keys this repo adds (byobu, zsh, vim, YASB, Hyprland, COSMIC), then each app's defaults (byobu, zsh, fzf, vim, Windows Terminal, TUI tools, AI CLIs, Windows apps) |
 | [Software](docs/software.md) | everything installed, with links |
 | [Packages](docs/packages.md) | `packages.yaml`: adding, removing, updating, what's included |
 | [Layout](docs/layout.md) | what each file in the repo is and where it is linked |

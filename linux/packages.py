@@ -4,6 +4,8 @@
   packages.py linux   [--adopt] [--yes]   apt repos + packages, github/script installs, update/post hooks
   packages.py windows [--adopt] [--yes]   winget ids on the Windows host (run from WSL)
   packages.py linux|windows --purge [--yes]   uninstall everything this installer recorded (install.cmd --uninstall)
+  packages.py linux --cosmic | --no-cosmic   choose (or drop) the opt-in COSMIC desktop on this machine (when: cosmic)
+  packages.py linux --hyprland | --no-hyprland   the same for the Hyprland desktop setup (when: hyprland)
 
 Removal: each machine records what this installer installed (linux: ~/.local/state/dotfiles/linux.json,
 windows: %LOCALAPPDATA%\\dotfiles\\windows.installed, shared with install.ps1). A recorded package that is no longer
@@ -16,6 +18,7 @@ import atexit, glob, io, json, os, platform, shlex, subprocess, sys, tarfile, th
 import yaml
 
 DOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # the repo
+os.environ['DOT'] = DOT  # for packages.yaml's scripts (e.g. a file from this repo)
 HOME = os.path.expanduser('~')
 BIN = os.path.join(HOME, '.local', 'bin')
 STATE = os.path.join(os.environ.get('XDG_STATE_HOME', os.path.join(HOME, '.local', 'state')), 'dotfiles')
@@ -26,6 +29,10 @@ PROTECTED = {'git', 'curl', 'ca-certificates', 'gnupg', 'gpg', 'openssl', 'pytho
 ADOPT = '--adopt' in sys.argv
 YES = '--yes' in sys.argv
 PURGE = '--purge' in sys.argv  # as if packages.yaml were empty
+# Opt-in desktops (when: cosmic, when: hyprland): chosen per machine with --cosmic / --hyprland, kept in the state dir
+# until --no-cosmic / --no-hyprland. Their entries (and apt repos) are only used while chosen; dropping the choice
+# offers to uninstall what they installed.
+OPT_IN = ('cosmic', 'hyprland')
 failed = []
 
 
@@ -111,7 +118,7 @@ def load(section):
 
 def confirm(what, names):
     status('')
-    print(f'\n{what} no longer in packages.yaml: {", ".join(sorted(names))}')
+    print(f'\n{what} no longer in packages.yaml (or for a desktop no longer chosen): {", ".join(sorted(names))}')
     if YES:
         return True
     try:
@@ -132,13 +139,40 @@ def is_wsl():
         return False
 
 
+def chosen(name):
+    return os.path.exists(os.path.join(STATE, f'desktop-{name}'))
+
+
+def choose():  # --cosmic / --no-cosmic: record the choice (before anything reads it). --purge forgets them
+    for name in OPT_IN:
+        f = os.path.join(STATE, f'desktop-{name}')
+        if PURGE:
+            if os.path.exists(f):
+                os.remove(f)
+        elif f'--{name}' in sys.argv:
+            os.makedirs(STATE, exist_ok=True)
+            open(f, 'w').close()
+        elif f'--no-{name}' in sys.argv and os.path.exists(f):
+            os.remove(f)
+
+
+def desktop():  # WSLg sets DISPLAY too, but WSL gets the Windows app instead
+    return not is_wsl() and any(os.environ.get(v) for v in ('XDG_CURRENT_DESKTOP', 'DISPLAY', 'WAYLAND_DISPLAY'))
+
+
 def wanted(p):
     when = p.get('when')
     if when == 'wsl':
         return is_wsl()
-    if when == 'desktop':  # WSLg sets DISPLAY too, but WSL gets the Windows app instead
-        return not is_wsl() and any(os.environ.get(v) for v in ('XDG_CURRENT_DESKTOP', 'DISPLAY', 'WAYLAND_DISPLAY'))
+    if when == 'desktop':
+        return desktop()
+    if when in OPT_IN:
+        return desktop() and chosen(when)
     return True
+
+
+def dropped(p):  # an opt-in desktop's entry while that desktop isn't chosen: as if not in packages.yaml
+    return p.get('when') in OPT_IN and not chosen(p['when'])
 
 
 def kind(p):
@@ -319,9 +353,14 @@ def linux():
             if mine:
                 record[tid] = {'kind': 'tool', 'uninstall': uninstall, 'check': check}
 
-    names = {p['name'] for p in every} | {t[0] for p in every for t in tools(p)}
-    # tools first: their uninstall needs the language, which may be going too
-    gone = sorted((n for n in record if n not in names), key=lambda n: record[n]['kind'] != 'tool')
+    kept = [p for p in every if not dropped(p)]
+    names = {p['name'] for p in kept} | {t[0] for p in kept for t in tools(p)}
+    # tools first: their uninstall needs the language, which may be going too. Then the rest in the reverse of
+    # packages.yaml's order, so what builds on an entry goes before it (hyprbars' uninstall needs hyprpm, which goes
+    # with hyprland-desktop above it). Names no longer in packages.yaml go first.
+    pos = {p['name']: i for i, p in enumerate(load('linux'))}
+    gone = sorted((n for n in record if n not in names),
+                  key=lambda n: (record[n]['kind'] != 'tool', -pos.get(n, len(pos))))
     for n in [n for n in gone if n in PROTECTED]:
         warn(f'{n}: core package, not uninstalling')
         del record[n]
@@ -355,11 +394,11 @@ def linux():
             else:
                 failed.append(f'uninstall {n}')
 
-    if PURGE:  # the apt repos it added
-        for r in [p['repo'] for p in load('linux') if 'repo' in p]:
-            files = [f'/usr/share/keyrings/{r["name"]}-archive-keyring.gpg', f'/etc/apt/sources.list.d/{r["name"]}.list']
-            if any(os.path.exists(f) for f in files):
-                run(f'apt repo {r["name"]} removed', SUDO + ['rm', '-f'] + files)
+    # the apt repos it added: all with --purge, an opt-in desktop's once it's dropped
+    for r in [p['repo'] for p in load('linux') if 'repo' in p and (PURGE or dropped(p))]:
+        files = [f'/usr/share/keyrings/{r["name"]}-archive-keyring.gpg', f'/etc/apt/sources.list.d/{r["name"]}.list']
+        if any(os.path.exists(f) for f in files):
+            run(f'apt repo {r["name"]} removed', SUDO + ['rm', '-f'] + files)
 
 
 def font_installed(prefix):
@@ -412,6 +451,7 @@ def windows():
 if __name__ == '__main__':
     if FX:
         threading.Thread(target=spinner, daemon=True).start()
+    choose()
     {'linux': linux, 'windows': windows}[sys.argv[1]]()
     status('')
     if failed:

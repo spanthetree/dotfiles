@@ -2,6 +2,40 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [SemVer](https://semver.org/), tagged `vX.Y.Z`.
 
+## [4.3.0] - 2026-11-24
+
+### Added
+- `install.cmd --hyprland` (Ubuntu 26.04+) installs the Hyprland desktop setup this repo builds on: LinuxBeginnings/Ubuntu-Hyprland and its config Hyprland-Dots, both pinned, with the answers in `linux/hypr/preset.sh`. `--no-hyprland` drops it again with its own uninstaller (keeping kitty, btop and slurp). On a machine that already has it: `--hyprland --adopt` once. The hyprpm plugins build on the next installer run from inside Hyprland.
+- Hyprland: Hyprspace (hyprpm plugin) is the workspace overview on tap-`Super` and `Super-A`: click a workspace to go there, drag windows between workspaces. The desktop setup's Quickshell overview is no longer used, and this installer's earlier edit to it (one row of 5) is undone.
+- Hyprland: the hyprfocus plugin (from the same repo as hyprbars) flashes the window that gets keyboard focus.
+- Hyprland: wayle, a panel (bar, notifications, OSD) to try in place of waybar + swaync. `~/.config/hypr/dotfiles-panel.sh wayle` switches to it, `... waybar` back; the choice holds across logins. Built with cargo from its latest release; config in `linux/wayle/config.toml` (SynthWave '84 palette), its menu button the distro logo in a SynthWave gradient. With it, the volume and brightness keys use wayle's indicator instead of a notification per press, and its audio modules follow headphones being plugged in or out.
+- Hyprland: `Ctrl-Alt-Shift-R` starts and stops screen recording of the focused monitor, as in GNOME (`Ctrl-Alt-Shift-A`: an area), into `~/Videos/Screencasts`. `linux/desktop/record.sh`, with wf-recorder and slurp (`packages.yaml`).
+- Hyprland: kanshi, monitor layouts that switch when screens are plugged in or out. Its profiles are per machine (`~/.config/kanshi/config`, untracked); without that file it isn't started.
+- Hyprland: wallust colour scheme SynthWave-84 (`linux/wallust`), in the desktop setup's theme menu (`Super-T`); it stays through wallpaper changes.
+- COSMIC as an opt-in second desktop: `install.cmd --cosmic` (`--no-cosmic` removes it, PPA included). From the community PPA hepp3n/cosmic-epoch, set up like the Hyprland one: its keys (`linux/cosmic/shortcuts.ron`: tap `Super` for the overview, `Super-Space` launcher, `Super-Return` kitty, `Super-Tab` and `Ctrl-Alt-Left/Right` for workspaces, and the rest in `docs/hotkeys.md`), tiling on for every workspace, workspaces side by side, and the SynthWave '84 theme with frosted glass, imported by the installer. Its settings are copied, not linked (COSMIC Settings replaces links); ones changed in Settings are left alone.
+- COSMIC: Japanese input (fcitx5 + Mozc, `Ctrl-Space`) as under Hyprland; `Alt-Tab` with live window previews (pivot, built with cargo at a pinned commit; `Ctrl-Alt-Tab` is COSMIC's own); system monitor (sysmon; right click opens btop) and keep-awake (Caffeine) applets in the panel; the Hyprland setup's wallpaper; `Ctrl-Alt-Shift-R` / `Ctrl-Alt-Shift-A` screen recording (wl-screenrec).
+- COSMIC: `Super-W` opens skwd-wall, a wallpaper picker that searches Wallhaven and applies what you pick (from its release's .debs, pinned; beta). Its wallpaper service starts only in COSMIC sessions.
+- COSMIC: Bluetooth is COSMIC's own panel applet; blueman's tray icon isn't started there (`linux/cosmic/blueman.desktop`).
+- `packages.yaml`: `when: hyprland` and `when: cosmic` entries install only on machines that chose that desktop.
+- Windows: a wallpaper picker (`windows/wallpapers.ps1`, `Ctrl-Alt-W` or "Wallpapers" in the Start menu): searches Wallhaven (safe-for-work, at least the screen's resolution, optional purple filter), and sets the thumbnail you click as the wallpaper. Downloads go to `Pictures\Wallpapers`. `--uninstall` removes the shortcut and keeps the downloads.
+- byobu: `Ctrl-Shift-N` opens a new session (a new group of tabs) in the same folder, from Windows Terminal and kitty (sent as `ESC[110;6u`, like `Ctrl-Shift-T`).
+- kitty: frosted glass behind its see-through background (`background_blur`) where the compositor does it (COSMIC; Hyprland blurs on its own).
+- Spotify's official app on desktops, from its snap (`packages.yaml`).
+
+### Changed
+- byobu: closing the last tab of a session moves the window to another session instead of closing the terminal (`detach-on-destroy off`).
+- kitty: no input method (`wayland_enable_ime no`): fcitx5 released `Alt` on its way out of kitty, so `Alt-Tab` from kitty flipped windows instead of showing the switcher. No Japanese typing in kitty; every other app keeps it.
+- Hyprland: `~/.local/bin` is on the PATH of everything Hyprland starts (a session from the login screen didn't have it), so tools installed there by `packages.yaml` work from bars, menus and keys.
+- waybar's workspace buttons show the workspaces that exist (was always 5), as Hyprspace adds them.
+- hyprshell (Alt-Tab, Super-Space) is smaller (`scale = 3`, about 210 x 120 per window on a 1440p screen) and themed by `linux/hyprshell/styles.css`. Super-Space opens mid-screen, with a narrower launcher.
+
+### Fixed
+- Hyprland's hypridle, hyprpaper and swaync no longer start in other desktops (Ubuntu enables their services for every session; hypridle ran hyprlock on idle there). A systemd drop-in (`linux/hypr/hyprland-only.conf`) limits them to Hyprland.
+- hyprbars is only installed and updated from a run inside Hyprland. From another desktop hyprpm can't tell which plugin commit matches this Hyprland: it built the latest, which can fail to build, and its update failed outright. The installer says when the plugins are still to come.
+
+### Removed
+- Terminator: its `packages.yaml` entry and config. kitty is the Linux terminal. The installer removes the old `~/.config/terminator/config` link (putting back any config it had replaced) and offers to uninstall Terminator where it installed it.
+
 ## [4.2.0] - 2026-11-22
 
 ### Added
@@ -231,6 +265,7 @@ Existing machines: run `install.sh --packages --adopt` once (so removing a packa
 ### Added
 - Initial repo: zsh (antidote, replaces Prezto), Starship prompt and status config, byobu 4-row status bar, vim (vim-plug, replaces pathogen), Windows Terminal settings merge, `install.sh` with backup-then-link.
 
+[4.3.0]: https://github.com/spanthetree/dotfiles/compare/v4.2.0...v4.3.0
 [4.2.0]: https://github.com/spanthetree/dotfiles/compare/v4.1.0...v4.2.0
 [4.1.0]: https://github.com/spanthetree/dotfiles/compare/v3.2.0...v4.1.0
 [3.2.0]: https://github.com/spanthetree/dotfiles/compare/v3.1.3...v3.2.0

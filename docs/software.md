@@ -116,11 +116,35 @@ vim plugins (all on GitHub): [ack.vim](https://github.com/mileszs/ack.vim), [vim
 | OpenCode | AI coding CLI (and desktop app on Windows) | https://opencode.ai |
 | Claude Desktop | desktop app (Windows) | https://claude.ai/download |
 
+## Linux desktop
+
+Only on a Linux desktop (not WSL). Hyprland and COSMIC only with `install.cmd --hyprland` / `--cosmic`; the Hyprland extras go on any installed Hyprland.
+
+| Software | What | Link |
+|---|---|---|
+| kitty | terminal | https://sw.kovidgoyal.net/kitty/ |
+| JetBrainsMono, FantasqueSansM Nerd Fonts | fonts with icons (kitty uses FantasqueSansM) | https://www.nerdfonts.com |
+| fcitx5 + Mozc, ibus + Mozc | Japanese input: Hyprland and COSMIC, GNOME | https://fcitx-im.org · https://github.com/google/mozc |
+| slurp, wf-recorder | screen recording: area picker, recorder (Hyprland) | https://github.com/emersion/slurp · https://github.com/ammen99/wf-recorder |
+| Spotify | music | https://www.spotify.com/download/linux/ |
+| Ubuntu-Hyprland, Hyprland-Dots | the Hyprland desktop setup (waybar, rofi, swaync, hyprlock, wallust...) | https://github.com/LinuxBeginnings/Ubuntu-Hyprland · https://github.com/LinuxBeginnings/Hyprland-Dots |
+| hyprbars, hyprfocus | Hyprland plugins: title bars, focus flash | https://github.com/hyprwm/hyprland-plugins |
+| Hyprspace | Hyprland workspace overview | https://github.com/KZDKM/Hyprspace |
+| hyprshell | Hyprland `Alt-Tab` and launcher | https://github.com/H3rmt/hyprshell |
+| wayle | Hyprland panel, to try in place of waybar | https://github.com/wayle-rs/wayle |
+| kanshi | monitor layouts on plug / unplug | https://gitlab.freedesktop.org/emersion/kanshi |
+| COSMIC | System76's desktop, from the hepp3n/cosmic-epoch PPA | https://system76.com/cosmic · https://launchpad.net/~hepp3n/+archive/ubuntu/cosmic-epoch |
+| pivot | COSMIC `Alt-Tab` with live previews | https://github.com/Sigma-studios/pivot |
+| sysmon, Caffeine | COSMIC panel applets: system monitor, keep awake | https://github.com/leonardo-panseri/cosmic-ext-applet-sysmon · https://github.com/Oussamaberchi/caffeine-cosmic |
+| skwd-wall | COSMIC wallpaper picker with Wallhaven search | https://github.com/liixini/skwd-wall |
+| wl-screenrec | screen recording (COSMIC) | https://github.com/russelltg/wl-screenrec |
+
 ## Windows
 
 | Software | What | Link |
 |---|---|---|
 | Windows Terminal | terminal | https://github.com/microsoft/terminal |
+| Wallpapers (this repo) | Wallhaven wallpaper picker, `Ctrl-Alt-W` | `windows/wallpapers.ps1` |
 | JetBrainsMono Nerd Font | font with icons | https://www.nerdfonts.com |
 | YASB | status bar | https://github.com/amnweb/yasb |
 | PowerToys | utilities | https://github.com/microsoft/PowerToys |

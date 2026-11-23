@@ -2,7 +2,7 @@
 
 The first section lists the keys this repo defines. After it are the main default keys of each app it installs. Each app section ends with where to find that app's full list.
 
-- [Custom keys](#custom-keys): byobu, zsh, vim, YASB, Hyprland
+- [Custom keys](#custom-keys): byobu, zsh, vim, YASB, Hyprland, COSMIC
 - [Clashes](#clashes): keys byobu takes before apps see them
 - Defaults: [byobu](#byobu) · [zsh](#zsh) · [fzf](#fzf) · [vim](#vim) · [Windows Terminal](#windows-terminal) · [TUI tools](#tui-tools) · [AI CLIs](#ai-clis) · [Windows apps](#windows-apps)
 
@@ -15,6 +15,7 @@ Browser-style tab keys. Byobu's own F-keys and Alt-arrows still work.
 | Key | Does |
 |---|---|
 | `Ctrl-Shift-T` / `F8` | new tab in the same folder (Windows Terminal and kitty send `Ctrl-Shift-T` through; their own new tab is `Ctrl-T`) |
+| `Ctrl-Shift-N` | new session (a group of tabs), in the same folder (Windows Terminal and kitty; also byobu's `Ctrl-Shift-F2`) |
 | `F2` | rename the tab (swapped with byobu's `F8`) |
 | `Ctrl-W` `Ctrl-W` | close tab; the second `Ctrl-W` or `y` confirms, any other key cancels (in vim: passed to vim) |
 | `Ctrl-PgUp` / `Ctrl-PgDn` | previous / next tab |
@@ -91,15 +92,16 @@ Leader is `,`.
 
 ### Hyprland (`linux/hypr/dotfiles.lua`)
 
-Only on top of a Hyprland desktop setup; its own keys are in its `Super-Shift-K` menu. Changed or added. Where hyprshell is installed (Ubuntu 26.04 on), it takes `Alt-Tab` (its switcher) and `Super-Space` (its overview with launcher, calculator, web search) instead of the rofi versions:
+Only on top of a Hyprland desktop setup; its own keys are in its `Super-Shift-K` menu. Changed or added. Windows that get focus from the keyboard flash briefly (hyprfocus plugin). Where hyprshell is installed (Ubuntu 26.04 on), it takes `Alt-Tab` (its switcher) and `Super-Space` (its overview with launcher, calculator, web search) instead of the rofi versions:
 
 | Key | Does |
 |---|---|
 | `Super-Space` | app launcher (rofi), like YASB's `Alt-Space` on Windows. Floating moved to `Super-Shift-Space` |
-| `Super` (tap) | overview, like GNOME's Activities (also `Super-A`) |
+| `Super` (tap) | workspace overview (Hyprspace), like GNOME's Activities (also `Super-A`): click a workspace to go there, drag windows between workspaces or onto the empty one at the end for a new one, `Escape` closes |
 | `Alt-Tab` / `Alt-Shift-Tab` | as in GNOME: a tap goes to the previous (Shift: least recent) window at once. Keep `Alt` held and press `Tab` again for the list of every window, most recently used first; `Tab`/`Shift-Tab` move, releasing `Alt` picks |
 | `Super-Tab` / `Super-Shift-Tab` | next / previous workspace (group switching is no longer on these) |
 | `Ctrl-Alt-Right` / `Ctrl-Alt-Left` | next / previous workspace, as in GNOME |
+| `Ctrl-Alt-Shift-R` | screen recording on/off, focused monitor, as in GNOME (`~/Videos/Screencasts`). `Ctrl-Alt-Shift-A`: an area you pick |
 | `Super-Shift-U` | minimize (also the `–` title-bar button and apps' own minimize buttons) |
 | `Super-U` | restore a minimized window, to the current workspace (also a click on the waybar count) |
 | `Alt-F4` | close window (also `Super-Q`) |
@@ -107,18 +109,53 @@ Only on top of a Hyprland desktop setup; its own keys are in its `Super-Shift-K`
 | `Super-E` | file manager (the desktop setup's, unchanged) |
 | `Ctrl-Space` | Japanese input on/off (fcitx5 + Mozc). The same on GNOME (ibus + Mozc; set by the installer, was `Super-Space`) |
 
+### COSMIC (`linux/cosmic/shortcuts.ron`, with `install.cmd --cosmic`)
+
+The Hyprland keys above, where COSMIC has the action. COSMIC's other defaults stay (COSMIC Settings > Keyboard): `Super-Q` close, `Super-1`…`9` workspaces and `Super-Shift-1`…`9` move there, `Super-arrows` / `Super-H/J/K` focus, `Super-Shift-arrows` move, `Super-R` resize mode, `Super-S` stack, `Super-O` split direction, `Super-Y` tiling on/off for the workspace, `Print` screenshot. Tiling is on for every workspace.
+
+| Key | Does |
+|---|---|
+| `Super` (tap), `Super-A` | workspace overview (COSMIC's default: launcher) |
+| `Super-Space` | launcher (type `=` to calculate). `Super-D`: all apps |
+| `Super-Return` | kitty |
+| `Super-E` | file manager |
+| `Super-W` | wallpapers, with Wallhaven search and download (skwd-wall; COSMIC's default: overview) |
+| `Super-L`, `Ctrl-Alt-L` | lock |
+| `Ctrl-Alt-P` / `Ctrl-Alt-Delete` | power off menu / log out |
+| `Super-Shift-S`, `Super-Print` | screenshot |
+| `Super-F` / `Super-Shift-F` | maximize / fullscreen |
+| `Super-Shift-Space` | float the window |
+| `Alt-Tab` / `Alt-Shift-Tab` | window switcher with live previews (pivot): a tap flips to the previous window; hold `Alt` for the grid. COSMIC's own while pivot isn't installed |
+| `Ctrl-Alt-Tab` / `Ctrl-Alt-Shift-Tab` | COSMIC's own window switcher (no previews), as a fallback |
+| `Super-Shift-U` | minimize (restore from the dock or `Alt-Tab`) |
+| `Super-G` | stack the window with its neighbour (tabs; Hyprland's groups) |
+| `Super-Shift-I` | split direction |
+| `Super-Alt-L` | tiling on/off for the workspace |
+| `Super-Ctrl-arrows`, `Super-Alt-arrows` | move the window (in tiling: swap with the neighbour) |
+| `Super-Tab` / `Super-Shift-Tab` | next / previous workspace |
+| `Ctrl-Alt-Right` / `Ctrl-Alt-Left`, `Super-.` / `Super-,` | next / previous workspace |
+| `Super-0` / `Super-Shift-0` | workspace 10 / move the window there |
+| `Super-Ctrl-1`…`0` | send the window to that workspace, staying here |
+| `Super-Shift-]` / `Super-Shift-[` | move the window to the next / previous workspace (`Super-Ctrl-]` / `[`: send it, staying here) |
+| `Ctrl-Alt-=` / `Ctrl-Alt--` | brightness up / down |
+| `Ctrl-Alt-Shift-R` | screen recording on/off (`~/Videos/Screencasts`). `Ctrl-Alt-Shift-A`: an area you pick |
+
+Not in COSMIC: Hyprland's restore menu (`Super-U`), directional resize (`Super-Shift-arrows`), and the floating workspace 10.
+
 ## Clashes
 
 Inside byobu, these keys reach byobu first, so apps in a tab never see them:
-- `Ctrl-Shift-T`, `F2`, `F8`, `Ctrl-W` (except in vim), `Ctrl-S` (except vim, nano, Claude Code)
+- `Ctrl-Shift-T`, `Ctrl-Shift-N`, `F2`, `F8`, `Ctrl-W` (except in vim), `Ctrl-S` (except vim, nano, Claude Code)
 - `Alt-D` (zsh: delete word; use `Ctrl-Delete`), `Alt-1`…`Alt-9`, `Alt-Up/Down/Left/Right`, `Ctrl-PgUp/PgDn`, `Ctrl-Alt-PgUp/PgDn`
 - `F1`…`F9` and their Shift/Ctrl/Alt forms: vim's `F2` (NERDTree), `F8` (ctags) and `F9` only work outside byobu. Use `:NERDTreeToggle` inside it
 - `Shift-arrows`, `Alt-Shift-arrows` (pane moves and resizes)
 - `F12`: byobu's prefix (`Ctrl-A` is left to apps: zsh start of line)
 
+On Windows, `Ctrl-Alt-W` opens the wallpaper picker, so no app sees it (its Start-menu shortcut takes it everywhere).
+
 `Alt-Space`: YASB's quick launch and PowerToys Run share the default. Whichever starts first gets it; change one in its settings.
 
-Under Hyprland and GNOME, `Ctrl-Space` is the input-method switch (fcitx5, ibus), so apps never see it (vim's and zsh's defaults don't use it). Hyprland's binds also come before rofi, which is why the `Alt-Tab` switcher runs inside an empty submap.
+Under Hyprland, COSMIC and GNOME, `Ctrl-Space` is the input-method switch (fcitx5, ibus), so apps never see it (vim's and zsh's defaults don't use it). Hyprland's binds also come before rofi, which is why the `Alt-Tab` switcher runs inside an empty submap.
 
 ## byobu
 
@@ -145,7 +182,7 @@ Byobu runs tmux with the prefix `F12` (this repo; byobu's "emacs mode", so `Ctrl
 | `Ctrl-F6` | close the pane (no prompt) |
 | `Alt-F9` | type in every pane of the tab at once (toggle) |
 | `Shift-F9` / `Ctrl-F9` | run a command in every pane / every tab |
-| `Ctrl-Shift-F2` | new session |
+| `Ctrl-Shift-F2` / `Ctrl-Shift-N` | new session |
 | `Alt-Up` / `Alt-Down` | previous / next session |
 | `Ctrl-F8` | rename session |
 | `Alt-Left` / `Alt-Right` | previous / next tab |
@@ -268,7 +305,7 @@ Defaults; full list: `Ctrl-,` → Actions.
 | Key | Does |
 |---|---|
 | `Ctrl-T` / `Ctrl-Shift-W` | new tab (this repo; `Ctrl-Shift-T` goes to byobu) / close pane |
-| `Ctrl-Shift-N` | new window |
+| `Ctrl-Shift-N` | new byobu session (this repo; was WT's new window) |
 | `Ctrl-Shift-D` | duplicate tab |
 | `Ctrl-Shift-1`…`9` | new tab with profile N |
 | `Ctrl-Shift-Space` | new tab menu |
@@ -318,4 +355,5 @@ Defaults; change them in each app's settings.
 | Process Explorer | `Ctrl-F` find a handle or DLL, `Ctrl-H` / `Ctrl-D` show handles / DLLs, `Ctrl-T` tree view, `Del` kill process |
 | Everything | type to search, `Enter` open, `Ctrl-Enter` open folder, `Ctrl-Shift-C` copy full path, `F2` rename |
 | Wireshark | `Ctrl-E` start / stop capture, `Ctrl-K` capture options, `Ctrl-/` display filter, `Ctrl-F` find packet, `Ctrl-.` / `Ctrl-,` next / previous packet |
+| Wallpapers (this repo, `windows/wallpapers.ps1`) | `Ctrl-Alt-W` opens it from anywhere (its Start-menu shortcut): search Wallhaven, click a thumbnail to set it as the wallpaper, `Esc` close |
 | VS Code | `Ctrl-Shift-P` commands, `Ctrl-P` open file, ``Ctrl-` `` terminal, `Ctrl-B` sidebar, `Ctrl-Shift-E/F/G/X` explorer / search / git / extensions, `Ctrl-D` next match, `Alt-Up/Down` move line, `Ctrl-/` comment, `F12` definition, `Ctrl-K Ctrl-S` all keys. Your synced keybindings override these |

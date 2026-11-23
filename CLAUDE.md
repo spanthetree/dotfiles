@@ -38,7 +38,9 @@ Semver: new feature = minor, fix = patch, a change that needs manual steps on ex
 - **Keys taken outside tmux:** `Alt-R` is taken by the NVIDIA overlay on the owner's machine, so rename in the Alt-D popup is `F2`. Check new global keys against [docs/hotkeys.md](docs/hotkeys.md#clashes).
 - **winget `Microsoft.Sysinternals.Suite`** fails its hash check whenever Microsoft updates the unversioned zip. Use the Store id `9P7KNL5RWT25`.
 - **WSL mirrored networking:** NFS mounts need `noresvport`, or mounting hangs and WSL starts slowly.
+- **COSMIC config:** Settings saves a key by replacing its file, so a link into the repo gets turned into a plain copy. That's why `configure_cosmic` copies the files. `cosmic-settings appearance import` rejects `//` comments, and COSMIC 1.11 keeps the theme in `v2/`.
 - **The owner's zsh** has `noclobber`: overwrite with `>|`.
+- **Stale `HYPRLAND_INSTANCE_SIGNATURE`:** byobu's server keeps the one from when it started, so after a Hyprland restart, shells in byobu name a dead instance: hyprctl/hyprpm fail ("failed to get the current hyprland version"). The installer's `fix_hypr_signature` switches to the live one; when testing by hand, take the live dir under `/run/user/$UID/hypr/` (the one whose `hyprctl version` answers).
 - **Claude Code's safety check** blocks `rm` inside `bash -c`. Put the `rm` in a script file, as `command rm` (the plain `rm` alias is interactive).
 
 ## Decisions already made (don't re-propose)

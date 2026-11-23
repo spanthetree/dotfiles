@@ -1,0 +1,11 @@
+[Desktop Entry]
+# Japanese input under COSMIC (install.cmd --cosmic): fcitx5 with Mozc, Ctrl-Space switches, as under Hyprland
+# (linux/hypr/dotfiles.lua starts it there). Linked to ~/.config/autostart/dotfiles-fcitx5.desktop; COSMIC only, so
+# GNOME keeps ibus. Its environment for XWayland and Qt apps: linux/zsh/zprofile (COSMIC's session start reads it).
+Type=Application
+Name=fcitx5 (dotfiles)
+TryExec=fcitx5
+Exec=fcitx5 -d --replace
+NoDisplay=true
+OnlyShowIn=COSMIC;
+X-COSMIC-Autostart-enabled=true

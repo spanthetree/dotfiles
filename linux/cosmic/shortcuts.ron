@@ -1,0 +1,87 @@
+// COSMIC custom keyboard shortcuts (install.cmd --cosmic): the Hyprland setup's keys (linux/hypr/dotfiles.lua and the
+// desktop setup under it), where COSMIC has the action. Copied (not linked: COSMIC Settings replaces a link when it
+// saves) to ~/.config/cosmic/com.system76.CosmicSettings.Shortcuts/v1/custom, which COSMIC merges over its defaults.
+// Shortcuts changed in COSMIC Settings > Keyboard are kept there; the installer then leaves the file alone and says so.
+// Format (cosmic-settings-daemon): { (modifiers: [...], key: "<xkb keysym>"): Action, }. Spawn runs no shell: hence
+// `sh -c`. `< /dev/null`: commands started from a shortcut get no usable stdin, and slurp then fails (cosmic-epoch #2481).
+{
+    // ------------------------------------------------ launchers, as in Hyprland
+    // Tapping Super: the workspace overview (GNOME's Activities, Hyprspace); COSMIC's default is the launcher
+    (modifiers: [Super]): System(WorkspaceOverview),
+    (modifiers: [Super], key: "a"): System(WorkspaceOverview),
+    // Super-Space: the launcher (hyprshell / rofi; COSMIC's also calculates: start with =). Super-D: all apps
+    (modifiers: [Super], key: "space"): System(Launcher),
+    (modifiers: [Super], key: "d"): System(AppLibrary),
+    (modifiers: [Super], key: "Return"): Spawn("kitty"),
+    (modifiers: [Super], key: "e"): System(HomeFolder),
+    // Super-W: wallpapers, with Wallhaven search (skwd-wall, packages.yaml); COSMIC's default here is the overview
+    (modifiers: [Super], key: "w", description: Some("Wallpapers (skwd-wall)")): Spawn("skwd-wall-v2"),
+    (modifiers: [Super], key: "l"): System(LockScreen),
+    (modifiers: [Ctrl, Alt], key: "l"): System(LockScreen),
+    (modifiers: [Ctrl, Alt], key: "p"): System(PowerOff),
+    (modifiers: [Ctrl, Alt], key: "Delete"): System(LogOut),
+    (modifiers: [Super, Shift], key: "s"): System(Screenshot),
+    (modifiers: [Super], key: "Print"): System(Screenshot),
+    (modifiers: [Ctrl, Alt], key: "equal"): System(BrightnessUp),
+    (modifiers: [Ctrl, Alt], key: "minus"): System(BrightnessDown),
+
+    // ------------------------------------------------ windows
+    // Alt-Tab: pivot (packages.yaml), live window previews; a quick tap flips to the previous window, as in GNOME.
+    // COSMIC's own switcher (the command behind its WindowSwitcher action) while pivot isn't installed.
+    (modifiers: [Alt], key: "Tab"):
+        Spawn("sh -c '[ -x ~/.local/bin/pivot ] && exec ~/.local/bin/pivot next || exec cosmic-launcher alt-tab'"),
+    (modifiers: [Alt, Shift], key: "Tab"):
+        Spawn("sh -c '[ -x ~/.local/bin/pivot ] && exec ~/.local/bin/pivot prev || exec cosmic-launcher shift-alt-tab'"),
+    // COSMIC's own switcher on Ctrl-Alt-Tab: a fallback, and kept off Alt-Tab so it can't interfere with pivot
+    (modifiers: [Ctrl, Alt], key: "Tab"): System(WindowSwitcher),
+    (modifiers: [Ctrl, Alt, Shift], key: "Tab"): System(WindowSwitcherPrevious),
+    (modifiers: [Super], key: "f"): Maximize,
+    (modifiers: [Super, Shift], key: "f"): Fullscreen,
+    (modifiers: [Super, Shift], key: "space"): ToggleWindowFloating,
+    (modifiers: [Super, Shift], key: "u"): Minimize,
+    // Hyprland's groups are COSMIC's stacks (tabs on the window); Super-S stacks too
+    (modifiers: [Super], key: "g"): ToggleStacking,
+    (modifiers: [Super, Shift], key: "i"): ToggleOrientation,
+    (modifiers: [Super, Alt], key: "l"): ToggleTiling,
+    // Move a window (Hyprland: Super-Ctrl-arrows) or swap it with its neighbour (Super-Alt-arrows): in COSMIC's tiling
+    // both are Move. Super-Shift-arrows (Hyprland's resize) stay COSMIC's Move: resize with Super-R, then arrows.
+    (modifiers: [Super, Ctrl], key: "Left"): Move(Left),
+    (modifiers: [Super, Ctrl], key: "Right"): Move(Right),
+    (modifiers: [Super, Ctrl], key: "Up"): Move(Up),
+    (modifiers: [Super, Ctrl], key: "Down"): Move(Down),
+    (modifiers: [Super, Alt], key: "Left"): Move(Left),
+    (modifiers: [Super, Alt], key: "Right"): Move(Right),
+    (modifiers: [Super, Alt], key: "Up"): Move(Up),
+    (modifiers: [Super, Alt], key: "Down"): Move(Down),
+
+    // ------------------------------------------------ workspaces
+    (modifiers: [Super], key: "Tab"): NextWorkspace,
+    (modifiers: [Super, Shift], key: "Tab"): PreviousWorkspace,
+    (modifiers: [Ctrl, Alt], key: "Right"): NextWorkspace,
+    (modifiers: [Ctrl, Alt], key: "Left"): PreviousWorkspace,
+    (modifiers: [Super], key: "period"): NextWorkspace,
+    (modifiers: [Super], key: "comma"): PreviousWorkspace,
+    (modifiers: [Super, Shift], key: "bracketright"): MoveToNextWorkspace,
+    (modifiers: [Super, Shift], key: "bracketleft"): MoveToPreviousWorkspace,
+    (modifiers: [Super, Ctrl], key: "bracketright"): SendToNextWorkspace,
+    (modifiers: [Super, Ctrl], key: "bracketleft"): SendToPreviousWorkspace,
+    // Super-0 is workspace 10 (COSMIC: the last one); Super-Ctrl-N sends a window there without following it
+    (modifiers: [Super], key: "0"): Workspace(10),
+    (modifiers: [Super, Shift], key: "0"): MoveToWorkspace(10),
+    (modifiers: [Super, Ctrl], key: "1"): SendToWorkspace(1),
+    (modifiers: [Super, Ctrl], key: "2"): SendToWorkspace(2),
+    (modifiers: [Super, Ctrl], key: "3"): SendToWorkspace(3),
+    (modifiers: [Super, Ctrl], key: "4"): SendToWorkspace(4),
+    (modifiers: [Super, Ctrl], key: "5"): SendToWorkspace(5),
+    (modifiers: [Super, Ctrl], key: "6"): SendToWorkspace(6),
+    (modifiers: [Super, Ctrl], key: "7"): SendToWorkspace(7),
+    (modifiers: [Super, Ctrl], key: "8"): SendToWorkspace(8),
+    (modifiers: [Super, Ctrl], key: "9"): SendToWorkspace(9),
+    (modifiers: [Super, Ctrl], key: "0"): SendToWorkspace(10),
+
+    // ------------------------------------------------ screen recording, as in GNOME (linux/desktop/record.sh)
+    (modifiers: [Ctrl, Alt, Shift], key: "r", description: Some("Screen recording on/off")):
+        Spawn("sh -c \"$HOME/.local/bin/dotfiles-record < /dev/null\""),
+    (modifiers: [Ctrl, Alt, Shift], key: "a", description: Some("Screen recording of an area on/off")):
+        Spawn("sh -c \"$HOME/.local/bin/dotfiles-record region < /dev/null\""),
+}

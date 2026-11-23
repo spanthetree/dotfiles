@@ -5,6 +5,8 @@
 #     --no-packages  skip the packages step (configs only)
 #     --adopt   once per existing machine: treat everything already installed from packages.yaml as managed
 #     --yes     uninstall removed packages without asking
+#     --cosmic  also install the COSMIC desktop (kept on later runs); --no-cosmic drops it again
+#     --hyprland  also install the Hyprland desktop setup (Ubuntu 26.04+; kept on later runs); --no-hyprland drops it
 #   ./install.cmd --uninstall remove it all: links, plugins, settings, packages it installed (asks); restores backups
 #   ./install.cmd --no-fx     plain output, no spinners (also off when output isn't a terminal, or NO_FX=1)
 set -euo pipefail
@@ -18,10 +20,10 @@ for arg in "$@"; do
   case $arg in
     --packages) ;;  # the default now; kept so older commands still work
     --no-packages) PACKAGES=0 ;;
-    --adopt|--yes) PKG_FLAGS+=("$arg") ;;
+    --adopt|--yes|--cosmic|--no-cosmic|--hyprland|--no-hyprland) PKG_FLAGS+=("$arg") ;;
     --uninstall) UNINSTALL=1 ;;
     --no-fx) NO_FX=1 ;;
-    -h|--help) sed -n '2,9s/^# \{0,1\}//p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,11s/^# \{0,1\}//p' "$0"; exit 0 ;;
     *) echo "unknown option: $arg" >&2; exit 2 ;;
   esac
 done
@@ -32,8 +34,24 @@ warn() { printf '  \033[38;2;254;222;93m▲\033[0m %s\n' "$*" >&2; }
 . "$DOT/linux/install-fx.sh"
 have() { command -v "$1" >/dev/null 2>&1; }
 is_wsl() { grep -qi microsoft /proc/version 2>/dev/null; }
+# hyprpm and hyprctl find Hyprland through HYPRLAND_INSTANCE_SIGNATURE. A shell that outlived a Hyprland restart
+# (byobu's server keeps the environment it started with) names a dead instance, and hyprpm then fails with
+# "failed to get the current hyprland version". Use the running instance instead (none: plugins load at login).
+fix_hypr_signature() {
+  [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]] && have hyprctl || return 0
+  hyprctl version >/dev/null 2>&1 && return 0
+  local d
+  for d in "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"/hypr/*/; do
+    [[ -S $d.socket.sock ]] || continue
+    if HYPRLAND_INSTANCE_SIGNATURE=$(basename "$d") hyprctl version >/dev/null 2>&1; then
+      export HYPRLAND_INSTANCE_SIGNATURE; HYPRLAND_INSTANCE_SIGNATURE=$(basename "$d"); return 0
+    fi
+  done
+  unset HYPRLAND_INSTANCE_SIGNATURE
+}
 mkdir -p "$HOME/.local/bin"
 export PATH="$HOME/.local/bin:$PATH"
+fix_hypr_signature  # before anything runs hyprpm or hyprctl
 
 # Move $1 into the backup dir, keeping its path relative to $HOME. Never deletes.
 backup() {
@@ -116,7 +134,18 @@ retire_old_setup() {
   done
   # Old pathogen vim repo; vim-plug manages ~/.vim/plugged now
   if [[ -d $HOME/.vim/bundle && -d $HOME/.vim/.git ]]; then backup "$HOME/.vim"; fi
+  retire_terminator
   return 0
+}
+# Terminator support was dropped (kitty and Windows Terminal remain): its config link into this repo would dangle.
+# Remove it and put back the config it replaced, if there was one.
+retire_terminator() {
+  local t="$HOME/.config/terminator/config"
+  [[ -L $t && $(readlink "$t") == "$DOT/"* ]] || return 0
+  command rm -f "$t"
+  restore .config/terminator/config
+  rmdir "$HOME/.config/terminator" 2>/dev/null || true
+  log "Terminator: config link removed (no longer part of these dotfiles)"
 }
 
 # repo path, then where it is linked under $HOME
@@ -134,19 +163,48 @@ LINKS=(
   linux/byobu/backend                 .config/byobu/backend
   linux/byobu/bin                     .config/byobu/bin
   linux/vim/vimrc                     .vimrc
-  linux/terminator/config             .config/terminator/config
   linux/kitty/dotfiles.conf           .config/kitty/dotfiles.conf
   linux/kitty/theme.conf              .config/kitty/theme.conf
   linux/hypr/dotfiles.lua             .config/hypr/dotfiles.lua
   linux/hypr/windows.sh               .config/hypr/dotfiles-windows.sh
+  linux/desktop/record.sh             .config/hypr/dotfiles-record.sh
+  linux/desktop/record.sh             .local/bin/dotfiles-record
+  linux/cosmic/SynthWave-84.ron       .config/cosmic-themes/SynthWave-84.ron
+  linux/cosmic/fcitx5.desktop         .config/autostart/dotfiles-fcitx5.desktop
+  linux/cosmic/pivot.desktop          .config/autostart/dotfiles-pivot.desktop
+  linux/cosmic/blueman.desktop        .config/autostart/blueman.desktop
+  linux/hypr/panel.sh                 .config/hypr/dotfiles-panel.sh
+  linux/hypr/hyprland-only.conf       .config/systemd/user/hypridle.service.d/dotfiles-hyprland-only.conf
+  linux/hypr/hyprland-only.conf       .config/systemd/user/hyprpaper.service.d/dotfiles-hyprland-only.conf
+  linux/hypr/hyprland-only.conf       .config/systemd/user/swaync.service.d/dotfiles-hyprland-only.conf
+  linux/hypr/swaync-panel.conf        .config/systemd/user/swaync.service.d/dotfiles-panel.conf
+  linux/wayle/config.toml             .config/wayle/config.toml
+  linux/wayle/styles/index.scss       .config/wayle/styles/index.scss
   linux/hyprshell/config.toml         .config/hyprshell/config.toml
+  linux/hyprshell/styles.css          .config/hyprshell/styles.css
+  linux/wallust/SynthWave-84.json     .config/wallust/colorschemes/SynthWave-84.json
 )
+unlink_ours() {  # unlink_ours <path>: remove it if it's a link into this repo
+  [[ -L $1 && $(readlink "$1") == "$DOT/"* ]] || return 0
+  command rm -f "$1"; log "unlinked ${1/#$HOME/\~}"
+}
 link_configs() {
   local i
   for ((i = 0; i < ${#LINKS[@]}; i += 2)); do
     [[ ${LINKS[i + 1]} == .config/kitty/* ]] && ! have kitty && continue  # kitty: packages.yaml, on a desktop
-    [[ ${LINKS[i + 1]} == .config/hypr/* ]] && ! have Hyprland && continue  # so does Hyprland
+    if [[ ${LINKS[i + 1]} == .config/hypr/* || ${LINKS[i + 1]} == .config/systemd/user/* ]] && ! have Hyprland; then
+      unlink_ours "$HOME/${LINKS[i + 1]}"  # --no-hyprland: Hyprland was uninstalled (or never there)
+      continue
+    fi
     [[ ${LINKS[i + 1]} == .config/hyprshell/* && ! -x $HOME/.local/bin/hyprshell ]] && continue  # built only on GTK 4.18+
+    [[ ${LINKS[i + 1]} == .config/wayle/* && ! -x $HOME/.local/bin/wayle ]] && continue  # packages.yaml, under Hyprland
+    [[ ${LINKS[i + 1]} == .config/wallust/* ]] && ! have wallust && continue  # the Hyprland desktop setup's
+    if [[ ${LINKS[i + 1]} == .config/cosmic* || ${LINKS[i + 1]} == .config/autostart/dotfiles-* ||
+          ${LINKS[i + 1]} == .config/autostart/blueman.desktop ||
+          ${LINKS[i + 1]} == .local/bin/dotfiles-record ]] && ! have cosmic-session; then
+      unlink_ours "$HOME/${LINKS[i + 1]}"  # --no-cosmic: COSMIC was uninstalled
+      continue
+    fi
     link "${LINKS[i]}" "$HOME/${LINKS[i + 1]}"
   done
 }
@@ -282,8 +340,25 @@ HYPR_OLD_INCLUDE='pcall(dofile, os.getenv("HOME") .. "/.config/hypr/dotfiles.lua
 WAYBAR_DIR="$HOME/.config/hypr/waybar"
 WAYBAR_MODULE='"custom/minimized": {"exec": "$HOME/.config/hypr/dotfiles-windows.sh count", "return-type": "json", "interval": 5, "signal": 11, "on-click": "$HOME/.config/hypr/dotfiles-windows.sh restore"}, // dotfiles'
 WAYBAR_ITEM='	"custom/minimized", // dotfiles'
-# fcitx5's input methods for Hyprland: US keyboard and Mozc (fcitx5 alone starts with the keyboard only)
-# The overview (Super-A, tap Super): one row of 5 workspaces instead of 2 x 5; its own docs say to edit this file
+# fcitx5's input methods for Hyprland and COSMIC: US keyboard and Mozc (fcitx5 alone starts with the keyboard only)
+# The desktop setup's Quickshell overview: older versions of this installer set it to one row of 5 workspaces
+# (instead of 2 x 5). Hyprspace replaced it, so that edit is undone on install and uninstall
+# Waybar's workspace modules: 1 persistent workspace instead of 5, so the bar shows the ones that exist
+# (Hyprspace and new windows add them). One "*": 5 line per module in the desktop setup's ModulesWorkspaces.
+WAYBAR_WS="$WAYBAR_DIR/ModulesWorkspaces"
+# Our wallust colour schemes (linux/wallust, linked into ~/.config/wallust/colorschemes): the desktop setup's
+# theme menu (ThemeChanger.sh) and wallpaper script (WallustSwww.sh) only know `wallust theme <built-in>`.
+# These edits list our schemes in the menu and apply them with `wallust cs`; built-in themes work as before.
+WALLUST_CS_DIR='"${XDG_CONFIG_HOME:-$HOME/.config}"/wallust/colorschemes'
+WALLUST_THEME_SCRIPTS=("$HOME/.config/hypr/scripts/WallustSwww.sh" "$HOME/.config/hypr/scripts/ThemeChanger.sh")
+WALLUST_LIST_OLD='  wallust "${wallust_args[@]}" theme list \'
+WALLUST_LIST_NEW='  { for f in '"$WALLUST_CS_DIR"'/*.json; do [ -e "$f" ] && echo "- $(basename "$f" .json)"; done; wallust "${wallust_args[@]}" theme list; } \'
+# `theme -- "$x"` -> `$(... cs or theme) -- "$x"`, for the variable each script uses
+wallust_verb() { printf '$([ -f %s/"%s".json ] && echo cs || echo theme)' "$WALLUST_CS_DIR" "$1"; }
+swap_text() {  # swap_text <file> <old> <new>: replace that literal text everywhere in the file; 1 if it wasn't there
+  grep -qF -- "$2" "$1" 2>/dev/null || return 1
+  A=$2 B=$3 perl -i -pe 's/\Q$ENV{A}\E/$ENV{B}/g' "$1"
+}
 QS_OVERVIEW="$HOME/.config/quickshell/overview/common/Config.qml"
 QS_ROWS='            property int rows: 2'
 QS_OUR_ROWS='            property int rows: 1  // dotfiles: 5 workspaces (was 2)'
@@ -291,6 +366,11 @@ QS_OUR_ROWS='            property int rows: 1  // dotfiles: 5 workspaces (was 2)
 # (its bug, as of Hyprland-Dots 2026-11): a link there makes those clicks work. Its updates keep UserScripts.
 WALLSEL_LINK="$HOME/.config/hypr/UserScripts/WallpaperSelect.sh"
 WALLSEL="$HOME/.config/hypr/scripts/WallpaperSelect.sh"
+# The desktop setup starts and restarts waybar through WaybarStartup.sh (login, Refresh.sh, lid, display profiles,
+# wallpaper changes). This line after its first makes it do nothing while wayle is the panel (linux/hypr/panel.sh),
+# instead of waybar appearing until panel.sh's watcher closes it. Its updates replace the script: re-added each run.
+WAYBAR_STARTUP="$HOME/.config/hypr/scripts/WaybarStartup.sh"
+WAYBAR_SKIP='[ "$("$HOME/.config/hypr/dotfiles-panel.sh" 2>/dev/null)" = wayle ] && exit 0  # dotfiles: wayle is the panel'
 FCITX_PROFILE="$HOME/.config/fcitx5/profile"
 FCITX_PROFILE_TEXT='[Groups/0]
 # Group Name
@@ -328,13 +408,20 @@ drop_line() {
 }
 hypr_version() { Hyprland --version 2>/dev/null | awk 'NR == 1 {print $2}'; }
 configure_hyprland() {
-  have Hyprland || return 0
+  have Hyprland || { drop_hypr_dropins; return 0; }  # --no-hyprland: its files went with it; the drop-ins' dirs stay
+  # the hyprland-only.conf drop-ins (LINKS): systemd reads them on a reload
+  systemctl --user daemon-reload 2>/dev/null || true
   local v; v=$(hypr_version)
   if [[ -n $v ]] && ! dpkg --compare-versions "$v" ge 0.55 2>/dev/null; then  # Lua config: 0.55+
     warn "Hyprland $v is too old for dotfiles.lua (needs 0.55+, e.g. from ppa:cppiber/hyprland); Hyprland settings skipped"
     return 0
   fi
   [[ -f $HYPR_KEYS ]] || { warn "Hyprland: no ${HYPR_KEYS/#$HOME/\~} (desktop setup not copied yet?); Hyprland settings skipped"; return 0; }
+  # the hyprpm plugins (packages.yaml) are only built from inside a running Hyprland
+  if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]] && have hyprpm &&
+     ! hyprpm list 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | grep -A1 'Plugin Hyprspace$' | grep -q 'enabled: true'; then
+    log "Hyprland: title bars and overview (hyprpm plugins) come on a run of the installer inside Hyprland"
+  fi
   drop_line "$HYPR_KEYS" "$HYPR_OLD_INCLUDE" || true
   if ! grep -qxF "$HYPR_INCLUDE" "$HYPR_KEYS"; then
     printf '\n%s\n' "$HYPR_INCLUDE" >> "$HYPR_KEYS"
@@ -357,9 +444,31 @@ configure_hyprland() {
     pkill -USR2 -x waybar 2>/dev/null || true  # reload its config
     log "waybar: minimized-windows indicator"
   fi
-  if grep -qxF -e "$QS_ROWS" "$QS_OVERVIEW" 2>/dev/null; then
-    A=$QS_ROWS B=$QS_OUR_ROWS perl -i -pe 's/^\Q$ENV{A}\E$/$ENV{B}/' "$QS_OVERVIEW"  # quickshell reloads it by itself
-    log "overview: 5 workspaces"
+  if grep -qE '^\s*"\*": 5$' "$WAYBAR_WS" 2>/dev/null; then
+    perl -i -pe 's{^(\s*"\*": )5$}{${1}1 // dotfiles: only the workspaces that exist (was 5)}' "$WAYBAR_WS"
+    pkill -USR2 -x waybar 2>/dev/null || true
+    log "waybar: workspace buttons for the workspaces that exist (was always 5)"
+  fi
+  local ws_var wallust_changed=''
+  for f in "${WALLUST_THEME_SCRIPTS[@]}"; do
+    [[ -f $f ]] || continue
+    for ws_var in '$global_theme' '${choice}'; do
+      swap_text "$f" 'wallust "${wallust_args[@]}" theme -- "'"$ws_var"'"' 'wallust "${wallust_args[@]}" '"$(wallust_verb "$ws_var")"' -- "'"$ws_var"'"' && wallust_changed=1
+    done
+    swap_text "$f" "$WALLUST_LIST_OLD" "$WALLUST_LIST_NEW" && wallust_changed=1
+  done
+  if [[ -n $wallust_changed ]]; then
+    command rm -f "${XDG_CACHE_HOME:-$HOME/.cache}/wallust_theme_list.txt"  # the menu's cached theme list
+    log "wallust: SynthWave-84 in the theme menu (Super-T)"
+  fi
+  # Hyprspace is the overview now (tap Super): the Quickshell one goes back to how the desktop setup ships it
+  if grep -qxF -e "$QS_OUR_ROWS" "$QS_OVERVIEW" 2>/dev/null; then
+    A=$QS_OUR_ROWS B=$QS_ROWS perl -i -pe 's/^\Q$ENV{A}\E$/$ENV{B}/' "$QS_OVERVIEW"
+    log "Quickshell overview: back to the desktop setup's (Hyprspace replaces it)"
+  fi
+  if [[ -f $WAYBAR_STARTUP ]] && ! grep -qxF -e "$WAYBAR_SKIP" "$WAYBAR_STARTUP"; then
+    insert_after "$WAYBAR_STARTUP" '^#!' "$WAYBAR_SKIP"
+    log "waybar: not started while wayle is the panel"
   fi
   if [[ -x $WALLSEL && ! -e $WALLSEL_LINK && ! -L $WALLSEL_LINK ]] && grep -rqF 'UserScripts/WallpaperSelect.sh' "$WAYBAR_DIR" 2>/dev/null; then
     mkdir -p "$(dirname "$WALLSEL_LINK")" && ln -s "$WALLSEL" "$WALLSEL_LINK"
@@ -370,13 +479,22 @@ configure_hyprland() {
       log "hyprshell: Alt-Tab and Super-Space (log in to Hyprland again, or run: hyprshell run)"
     else warn "hyprshell: linux/hyprshell/config.toml has errors: hyprshell -c ~/.config/hyprshell/config.toml config check"; fi
   fi
+  configure_fcitx_profile
+}
+configure_fcitx_profile() {  # Hyprland and COSMIC
   if have fcitx5 && [[ ! -e $FCITX_PROFILE ]]; then
     mkdir -p "$(dirname "$FCITX_PROFILE")"
     printf '%s\n' "$FCITX_PROFILE_TEXT" >| "$FCITX_PROFILE"
     log "fcitx5: US keyboard + Mozc (Ctrl-Space switches)"
   fi
 }
+drop_hypr_dropins() {  # the hyprland-only.conf drop-ins, once unlinked: their empty dirs, and tell systemd
+  local u
+  for u in hypridle hyprpaper swaync; do rmdir "$HOME/.config/systemd/user/$u.service.d" 2>/dev/null || true; done
+  systemctl --user daemon-reload 2>/dev/null || true
+}
 uninstall_hyprland() {
+  drop_hypr_dropins
   if drop_line "$HYPR_KEYS" "$HYPR_INCLUDE" || drop_line "$HYPR_KEYS" "$HYPR_OLD_INCLUDE"; then
     log "Hyprland: include removed from user_keybinds.lua"
   fi
@@ -393,9 +511,30 @@ uninstall_hyprland() {
   if [[ -L $WALLSEL_LINK && $(readlink "$WALLSEL_LINK") == "$WALLSEL" ]]; then
     command rm -f "$WALLSEL_LINK"; log "waybar: wallpaper menu link removed"
   fi
+  if drop_line "$WAYBAR_STARTUP" "$WAYBAR_SKIP"; then log "waybar: WaybarStartup.sh as the desktop setup ships it"; fi
+  if [[ -f $HOME/.config/hypr/dotfiles-panel ]]; then  # the wayle choice (linux/hypr/panel.sh): waybar again at login
+    command rm -f "$HOME/.config/hypr/dotfiles-panel"; log "panel: back to waybar at the next login"
+  fi
   if grep -qxF -e "$QS_OUR_ROWS" "$QS_OVERVIEW" 2>/dev/null; then
     A=$QS_OUR_ROWS B=$QS_ROWS perl -i -pe 's/^\Q$ENV{A}\E$/$ENV{B}/' "$QS_OVERVIEW"
     log "overview: back to 10 workspaces"
+  fi
+  if grep -q '// dotfiles: only the workspaces that exist' "$WAYBAR_WS" 2>/dev/null; then
+    perl -i -pe 's{^(\s*"\*": )1 // dotfiles: only the workspaces that exist.*$}{${1}5}' "$WAYBAR_WS"
+    pkill -USR2 -x waybar 2>/dev/null || true
+    log "waybar: 5 workspace buttons again"
+  fi
+  local ws_var wallust_changed=''
+  for f in "${WALLUST_THEME_SCRIPTS[@]}"; do
+    [[ -f $f ]] || continue
+    for ws_var in '$global_theme' '${choice}'; do
+      swap_text "$f" 'wallust "${wallust_args[@]}" '"$(wallust_verb "$ws_var")"' -- "'"$ws_var"'"' 'wallust "${wallust_args[@]}" theme -- "'"$ws_var"'"' && wallust_changed=1
+    done
+    swap_text "$f" "$WALLUST_LIST_NEW" "$WALLUST_LIST_OLD" && wallust_changed=1
+  done
+  if [[ -n $wallust_changed ]]; then
+    command rm -f "${XDG_CACHE_HOME:-$HOME/.cache}/wallust_theme_list.txt"
+    log "wallust: theme menu and wallpaper script back to built-in themes only"
   fi
   # ours unless changed since: compare without fcitx5's comments and blank lines (it rewrites the file)
   local strip='/^#/d; /^[[:space:]]*$/d'
@@ -406,6 +545,29 @@ uninstall_hyprland() {
 }
 
 # VS Code under Hyprland: Electron picks its secret store from XDG_CURRENT_DESKTOP, doesn't know Hyprland,
+# wayle's dashboard (menu) button: the distro logo in SynthWave '84 colours. Made from the Simple Icons logo wayle
+# installs (wayle icons setup), so no logo file sits in this repo: its single solid fill becomes a diagonal
+# yellow -> pink -> cyan gradient. A full-colour icon, so GTK draws it as is (linux/wayle/config.toml: icon-override).
+WAYLE_LOGO="$HOME/.local/share/icons/hicolor/scalable/apps/dotfiles-distro-logo.svg"
+configure_wayle_logo() {
+  [[ -x $HOME/.local/bin/wayle ]] || return 0
+  local id src new
+  id=$(. /etc/os-release 2>/dev/null && printf '%s' "${ID:-}")
+  src="$HOME/.local/share/wayle/icons/hicolor/scalable/actions/si-$id-symbolic.svg"
+  [[ -n $id && -f $src ]] || { warn "wayle: no $id logo in its icons (wayle icons setup?); menu button logo left as is"; return 0; }
+  new=$(perl -0777 -pe '
+    s/\s+gpa:fill=\x27[^\x27]*\x27//g;
+    s/<svg(?![^>]*xmlns=)/<svg xmlns=\x27http:\/\/www.w3.org\/2000\/svg\x27/;   # GTK draws it as a plain SVG now
+    s/fill=\x27rgb\(0,0,0\)\x27/fill=\x27url(#dotfiles-synthwave)\x27/g;
+    s{(<svg[^>]*>)}{$1\n  <defs><linearGradient id=\x27dotfiles-synthwave\x27 x1=\x270\x27 y1=\x270\x27 x2=\x271\x27 y2=\x271\x27><stop offset=\x270\x27 stop-color=\x27#fede5d\x27/><stop offset=\x270.5\x27 stop-color=\x27#ff7edb\x27/><stop offset=\x271\x27 stop-color=\x27#36f9f6\x27/></linearGradient></defs>};
+  ' "$src")
+  [[ $new == *dotfiles-synthwave* ]] || { warn "wayle: the $id logo's format changed; menu button logo left as is"; return 0; }
+  [[ -f $WAYLE_LOGO && $(<"$WAYLE_LOGO") == "$new" ]] && return 0
+  mkdir -p "$(dirname "$WAYLE_LOGO")"
+  printf '%s\n' "$new" >| "$WAYLE_LOGO"
+  log "wayle: menu button logo in SynthWave colours"
+}
+
 # and says "An OS keyring couldn't be identified". Point it at gnome-keyring (libsecret) in argv.json (JSONC).
 VSCODE_ARGV="$HOME/.vscode/argv.json"
 VSCODE_LINE='	"password-store": "gnome-libsecret", // dotfiles'
@@ -477,6 +639,104 @@ uninstall_gnome_input() {
   return 0
 }
 
+# ---------------------------------------------------------------- COSMIC
+# COSMIC's settings: one file per key under ~/.config/cosmic. Copied, not linked: COSMIC Settings saves by replacing
+# the file, link and all. What we last wrote is kept in $COSMIC_STATE; a file that no longer matches it was changed in
+# COSMIC Settings, and is left alone. What was there before the first time goes to the backup dir.
+COSMIC_CFG="$HOME/.config/cosmic"
+COSMIC_STATE="$HOME/.local/state/dotfiles/cosmic"
+# The Hyprland desktop setup's current wallpaper (a copy it keeps updated): COSMIC shows the same one, read at login
+HYPR_WALLPAPER="$HOME/.config/hypr/wallpaper_effects/.wallpaper_current"
+COSMIC_KEYS=(  # <key file under ~/.config/cosmic> <value, or @file in this repo; empty: not set on this machine>
+  com.system76.CosmicSettings.Shortcuts/v1/custom  @linux/cosmic/shortcuts.ron  # the Hyprland setup's keys
+  com.system76.CosmicComp/v1/autotile              true      # tiling, as in Hyprland: on for every workspace
+  com.system76.CosmicComp/v1/autotile_behavior     Global
+  com.system76.CosmicComp/v1/workspaces            '(workspace_mode: OutputBound, workspace_layout: Horizontal)'
+  # The panel: COSMIC's own applets, plus (packages.yaml) Caffeine before the clock and the system monitor first on
+  # the right, where wayle has idle-inhibit and cpu/ram. An applet that isn't installed is skipped by the panel.
+  com.system76.CosmicPanel.Panel/v1/plugins_center 'Some(["com.github.cosmic-caffeine", "com.system76.CosmicAppletTime"])'
+  com.system76.CosmicPanel.Panel/v1/plugins_wings  'Some((["com.system76.CosmicPanelWorkspacesButton", "com.system76.CosmicPanelAppButton"], ["io.github.leonardo_panseri.cosmic-ext-applet-sysmon", "com.system76.CosmicAppletInputSources", "com.system76.CosmicAppletA11y", "com.system76.CosmicAppletStatusArea", "com.system76.CosmicAppletTiling", "com.system76.CosmicAppletAudio", "com.system76.CosmicAppletBluetooth", "com.system76.CosmicAppletNetwork", "com.system76.CosmicAppletBattery", "com.system76.CosmicAppletNotifications", "com.system76.CosmicAppletPower"]))'
+  # (an if, not &&: a failed test in $(...) would end the installer under set -e on machines without that file)
+  # The system monitor's right click (and "Process monitor" in its popup): btop in kitty, as Hyprland's panel does
+  io.github.leonardo_panseri.cosmic-ext-applet-sysmon/v1/process_monitor '"kitty -e btop"'
+  com.system76.CosmicBackground/v1/all             "$(if [[ -f $HYPR_WALLPAPER ]]; then printf '(
+    output: "all",
+    source: Path("%s"),
+    filter_by_theme: true,
+    rotation_frequency: 300,
+    filter_method: Lanczos,
+    scaling_mode: Zoom,
+    sampling_method: Alphanumeric,
+)' "$HYPR_WALLPAPER"; fi)"
+)
+cosmic_value() {  # cosmic_value <value or @file>
+  if [[ $1 == @* ]]; then cat "$DOT/${1#@}"; else printf '%s' "$1"; fi
+}
+configure_cosmic() {
+  have cosmic-session || { uninstall_cosmic; return 0; }  # --no-cosmic: COSMIC was uninstalled
+  local i f s v changed=''
+  for ((i = 0; i < ${#COSMIC_KEYS[@]}; i += 2)); do
+    f=$COSMIC_CFG/${COSMIC_KEYS[i]} s=$COSMIC_STATE/${COSMIC_KEYS[i]}
+    v=$(cosmic_value "${COSMIC_KEYS[i + 1]}")
+    [[ -n $v ]] || continue  # not for this machine (e.g. no Hyprland wallpaper)
+    [[ -L $f && $(readlink "$f") == "$DOT/"* ]] && command rm -f "$f"  # linked by older versions
+    if [[ -f $f && $(<"$f") == "$v" ]]; then
+      mkdir -p "$(dirname "$s")"; printf '%s' "$v" >| "$s"; continue
+    fi
+    if [[ -e $f && -f $s ]] && [[ $(<"$f") != "$(<"$s")" ]]; then
+      warn "COSMIC: ~/${f#"$HOME"/} was changed in COSMIC Settings; left as it is (delete it and re-run for ours)"
+      continue
+    fi
+    if [[ -e $f && ! -f $s ]]; then backup "$f"; fi  # from before the first install
+    mkdir -p "$(dirname "$f")" "$(dirname "$s")"
+    printf '%s' "$v" >| "$f"; printf '%s' "$v" >| "$s"
+    changed=1
+  done
+  [[ -n $changed ]] && log "COSMIC: Hyprland's keys, tiling on, workspaces side by side, panel applets, wallpaper"
+  configure_fcitx_profile
+  configure_cosmic_theme
+}
+# The SynthWave '84 theme (linux/cosmic/SynthWave-84.ron), imported when it's new or changed: COSMIC keeps the theme it
+# builds from it in ~/.config/cosmic/com.system76.CosmicTheme.Dark*, and tweaks made in Settings stay until then.
+# Its importer takes no comments, hence the grep.
+COSMIC_THEME_DIRS=(com.system76.CosmicTheme.Dark com.system76.CosmicTheme.Dark.Builder)
+configure_cosmic_theme() {
+  local src=$DOT/linux/cosmic/SynthWave-84.ron s=$COSMIC_STATE/theme sum tmp d
+  have cosmic-settings || return 0
+  sum=$(sha256sum "$src" | cut -d' ' -f1)
+  [[ -f $s && $(<"$s") == "$sum" ]] && return 0
+  if [[ ! -f $s ]]; then  # the first time: keep the theme from before
+    for d in "${COSMIC_THEME_DIRS[@]}"; do [[ -e $COSMIC_CFG/$d ]] && backup "$COSMIC_CFG/$d"; done
+  fi
+  tmp=$(mktemp --suffix=.ron)
+  grep -v '^[[:space:]]*//' "$src" >| "$tmp"
+  if timeout 60 cosmic-settings appearance import "$tmp" 2>&1 | grep -q '^Successfully imported'; then
+    mkdir -p "$COSMIC_STATE"; printf '%s' "$sum" >| "$s"
+    log "COSMIC: SynthWave '84 theme, frosted glass"
+  else
+    warn "COSMIC: the theme import failed; import ~/.config/cosmic-themes/SynthWave-84.ron in Settings > Appearance"
+  fi
+  command rm -f "$tmp"
+  return 0
+}
+uninstall_cosmic() {  # put back what was there, unless it was changed in COSMIC Settings since
+  local i f s rel changed=''
+  for ((i = 0; i < ${#COSMIC_KEYS[@]}; i += 2)); do
+    rel=.config/cosmic/${COSMIC_KEYS[i]} f=$HOME/$rel s=$COSMIC_STATE/${COSMIC_KEYS[i]}
+    [[ -f $s ]] || continue
+    if [[ -f $f && $(<"$f") == "$(<"$s")" ]]; then command rm -f "$f"; restore "$rel"; changed=1; fi
+    command rm -f "$s"
+  done
+  if [[ -f $COSMIC_STATE/theme ]]; then  # back to the theme from before (COSMIC's own if there was none)
+    local d
+    for d in "${COSMIC_THEME_DIRS[@]}"; do command rm -rf "${COSMIC_CFG:?}/$d"; restore ".config/cosmic/$d"; done
+    command rm -f "$COSMIC_STATE/theme"; changed=1
+  fi
+  [[ -d $COSMIC_STATE ]] && find "$COSMIC_STATE" -depth -type d -empty -delete
+  [[ -n $changed ]] && log "COSMIC: keys, tiling settings and theme removed"
+  return 0
+}
+
 # ---------------------------------------------------------------- uninstall
 # Undo everything above. Only removes what is ours (links into this repo, our plugin clones, packages this
 # installer recorded); everything it replaced comes back from the oldest backup, i.e. from before the first install.
@@ -514,6 +774,7 @@ uninstall_configs() {
   log "removed plugins (antidote, tmux-resurrect, tmux-continuum, vim-plug)"
   # what the links and the old-setup cleanup moved aside
   for ((i = 1; i < ${#LINKS[@]}; i += 2)); do restore "${LINKS[i]}"; done
+  retire_terminator
   for i in .zlogin .zlogout .zpreztorc .vim; do restore "$i"; done
 }
 
@@ -526,7 +787,9 @@ uninstall_system() {
     if unkitty "$kc" "$KITTY_INCLUDE" "$KITTY_OLD_INCLUDE" "$KITTY_HYPR_INCLUDE"; then log "kitty: include removed from ${kc/#$HOME/\~}"; fi
   done
   uninstall_hyprland
+  if [[ -f $WAYLE_LOGO ]]; then command rm -f "$WAYLE_LOGO"; log "wayle: menu button logo removed"; fi
   uninstall_gnome_input
+  uninstall_cosmic
   if grep -qxF -e "$VSCODE_LINE" -e "${VSCODE_LINE/,/}" "$VSCODE_ARGV" 2>/dev/null; then
     local argv; argv=$(grep -vxF -e "$VSCODE_LINE" -e "${VSCODE_LINE/,/}" "$VSCODE_ARGV" || true)
     if [[ -z ${argv//[[:space:]\{\}]/} ]]; then command rm -f "$VSCODE_ARGV"  # only our key: we created it
@@ -590,7 +853,9 @@ configure_yasb
 configure_git
 configure_kitty
 configure_hyprland
+configure_wayle_logo
 configure_vscode
 configure_gnome_input
+configure_cosmic
 [[ -d $BACKUP ]] && log "backups in $BACKUP"
 outro

@@ -38,9 +38,29 @@ else
   rebind("SUPER", "SPACE", exec_cmd(launcher), "app launcher")
 end
 rebind("SUPER SHIFT", "SPACE", dispatch("togglefloating", ""), "Float current window")
--- Tapping Super alone: the overview, like GNOME's Activities (Super-A too)
-hl.bind("SUPER + Super_L", exec_cmd("$HOME/.config/hypr/scripts/OverviewToggle.sh"),
-  { release = true, description = "desktop overview (tap Super)" })
+-- Tapping Super alone: the workspace overview, like GNOME's Activities (Super-A too). Hyprspace (packages.yaml):
+-- every workspace in a strip; click one to go there, drag windows between them (or onto the empty one at the end
+-- for a new workspace), Escape or a click closes it. Until the plugin is loaded (hyprpm reloads the config once
+-- it is), the desktop setup's Quickshell overview.
+local overview = hl.plugin and hl.plugin.overview
+local toggle_overview = overview and function() overview.toggle() end
+  or exec_cmd("$HOME/.config/hypr/scripts/OverviewToggle.sh")
+hl.bind("SUPER + Super_L", toggle_overview, { release = true, description = "workspace overview (tap Super)" })
+rebind("SUPER", "A", toggle_overview, "workspace overview")
+if overview then
+  hl.config({
+    plugin = {
+      overview = {
+        exitOnSwitch = true,         -- clicking a workspace goes there and closes the overview
+        showNewWorkspace = true,     -- an empty one at the end: drop a window there for a new workspace
+        showEmptyWorkspace = true,
+        panelColor = "rgba(262335cc)",           -- SynthWave '84 background
+        workspaceActiveBorder = "rgba(ff7edbff)", -- its pink
+        workspaceInactiveBorder = "rgba(495495ff)",
+      },
+    },
+  })
+end
 
 -- Super-Tab / Super-Shift-Tab: next / previous workspace (the desktop setup also had group switching there)
 rebind("SUPER", "Tab", dispatch("workspace", "m+1"), "next workspace")
@@ -48,6 +68,29 @@ rebind("SUPER SHIFT", "Tab", dispatch("workspace", "m-1"), "previous workspace")
 -- Ctrl-Alt-Left/Right: the same, as in GNOME (byobu moves tabs with Ctrl-Alt-PgUp/PgDn instead)
 rebind("CTRL ALT", "Left", dispatch("workspace", "m-1"), "previous workspace")
 rebind("CTRL ALT", "Right", dispatch("workspace", "m+1"), "next workspace")
+
+-- Ctrl-Alt-Shift-R: start / stop screen recording, as in GNOME (linux/desktop/record.sh). Ctrl-Alt-Shift-A: an area.
+local record = hypr .. "/dotfiles-record.sh"
+rebind("CTRL ALT SHIFT", "R", exec_cmd(record), "screen recording on/off (focused monitor)")
+rebind("CTRL ALT SHIFT", "A", exec_cmd(record .. " region"), "screen recording on/off (pick an area)")
+
+-- Volume and brightness keys: the desktop setup's Volume.sh / Brightness.sh with waybar; with wayle (its own on-screen
+-- indicator) the same change without their notifications, which stack there. linux/hypr/panel.sh decides.
+local panel = hypr .. "/dotfiles-panel.sh key "
+for _, k in ipairs({
+  { "", "XF86AudioRaiseVolume", "Volume.sh --inc", "volume up", true },
+  { "", "XF86AudioLowerVolume", "Volume.sh --dec", "volume down", true },
+  { "ALT", "XF86AudioRaiseVolume", "Volume.sh --inc-precise", "volume up precise", true },
+  { "ALT", "XF86AudioLowerVolume", "Volume.sh --dec-precise", "volume down precise", true },
+  { "", "XF86AudioMute", "Volume.sh --toggle", "toggle mute", false },
+  { "", "XF86AudioMicMute", "Volume.sh --toggle-mic", "toggle mic mute", false },
+  { "", "XF86MonBrightnessUp", "Brightness.sh --inc", "increase monitor brightness", true },
+  { "", "XF86MonBrightnessDown", "Brightness.sh --dec", "decrease monitor brightness", true },
+  { "CTRL ALT", "equal", "Brightness.sh --inc", "increase brightness", true },
+  { "CTRL ALT", "minus", "Brightness.sh --dec", "decrease brightness", true },
+}) do
+  rebind(k[1], k[2], exec_cmd(panel .. k[3]), k[4], { locked = true, repeating = k[5] })
+end
 
 rebind("ALT", "F4", dispatch("killactive", ""), "close active window")
 rebind("SUPER", "L", exec_cmd("$HOME/.config/hypr/scripts/LockScreen.sh"), "lock screen")
@@ -151,7 +194,20 @@ hl.on("hyprland.start", function()
   hl.exec_cmd("sh -c 'sleep 3; pgrep -x nwg-dock-hyprla >/dev/null || exec " .. hypr .. "/scripts/Dock.sh --restart'")
   if have("/usr/bin/fcitx5") then hl.exec_cmd("fcitx5 -d --replace") end
   if use_hyprshell then hl.exec_cmd(hyprshell .. " -c " .. hyprshell_conf .. " run") end
+  -- kanshi (packages.yaml): monitor profiles for docking, applied over the wlr-output-management protocol, so they
+  -- override monitors.lua while it runs. Only with this machine's own profiles (untracked; see docs/layout.md)
+  if have("/usr/bin/kanshi") and have(home .. "/.config/kanshi/config") then hl.exec_cmd("kanshi") end
+  -- wayle in place of waybar + swaync, when chosen with dotfiles-panel.sh (linux/hypr/panel.sh)
+  hl.exec_cmd(hypr .. "/dotfiles-panel.sh login")
 end)
+
+-- ~/.local/bin (wayle, hyprshell, vicinae and the like from packages.yaml) on the PATH of everything Hyprland starts:
+-- a session from the login screen doesn't get it (no login shell runs), so e.g. wayle's buttons that call `wayle`
+-- did nothing
+do
+  local path, bin = os.getenv("PATH") or "/usr/local/bin:/usr/bin:/bin", home .. "/.local/bin"
+  if not (":" .. path .. ":"):find(":" .. bin .. ":", 1, true) then hl.env("PATH", bin .. ":" .. path) end
+end
 
 -- Japanese input: fcitx5 with Mozc (packages.yaml); Ctrl-Space switches. GNOME keeps ibus (Super-Space).
 if have("/usr/bin/fcitx5") then
@@ -159,6 +215,12 @@ if have("/usr/bin/fcitx5") then
   hl.env("QT_IM_MODULE", "fcitx")
   hl.env("SDL_IM_MODULE", "fcitx")
 end
+
+-- ---------------------------------------------------------------- focus flash
+-- hyprfocus plugin (packages.yaml): a short flash on the window that gets focus from the keyboard (Alt-Tab,
+-- workspace keys), so it's clear where you landed; not on clicks. Its defaults do just that, so nothing is set here.
+-- To change it: hl.config({ plugin = { hyprfocus = { keyboard_focus_animation = "flash" | "shrink" | "slide" | "none",
+-- mouse_focus_animation = ..., fade_opacity = 0.8 } } }). (It has no hl.plugin.hyprfocus table to test for.)
 
 -- ---------------------------------------------------------------- title bars
 -- minimize/maximize/close (hyprbars plugin, from packages.yaml)

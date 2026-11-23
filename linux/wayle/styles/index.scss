@@ -1,0 +1,25 @@
+// wayle style overrides (on top of its built-in stylesheet). Linked to
+// ~/.config/wayle/styles/index.scss where wayle is installed. Variables and selectors: wayle's guide/custom-styles
+// and its crates/wayle-styling/scss. wayle watches its styles folder, not this file behind the link: after an
+// edit, restart it (~/.config/hypr/dotfiles-panel.sh wayle).
+// Sizes are set as finished values: wayle computes --bar-btn-icon-size and the like once, at the top, so changing
+// the scale variables they come from on one widget changes nothing.
+
+// The dashboard (menu) button: its icon larger than the rest of the bar's (bar.button-icon-size 0.55);
+// 1.6rem is wayle's base icon size. Its module's outer box carries the "dashboard" class, the button sits inside
+// (a layout `class = ...` lands on that box too, not on the button).
+.dashboard menubutton.bar-button {
+  --bar-btn-icon-size: calc(1.6rem * var(--bar-scale) * 0.8);
+}
+
+// Workspace buttons: they fill the bar's height and fit their label across (label-size and workspace-padding in
+// config.toml), so a margin above and below is what makes the active one's pink box smaller
+.workspace {
+  margin: calc(0.4rem * var(--bar-scale)) calc(0.05rem * var(--bar-scale));
+}
+
+// Bluetooth and network: their icons a little larger than the bar's 0.55, nearer the keyboard one's look
+.bluetooth menubutton.bar-button,
+.network menubutton.bar-button {
+  --bar-btn-icon-size: calc(1.6rem * var(--bar-scale) * 0.65);
+}

@@ -1,0 +1,142 @@
+# wayle: the Hyprland panel, tried in place of the desktop setup's waybar (+ swaync for notifications).
+# Linked to ~/.config/wayle/config.toml where wayle is installed (packages.yaml). Which panel runs is chosen with
+#   ~/.config/hypr/dotfiles-panel.sh wayle | waybar      (linux/hypr/panel.sh; the choice survives a log out)
+# Changes made in wayle's settings app go to ~/.config/wayle/runtime.toml, which wins over this file.
+# Every key: https://wayle.app/config/  (all have defaults; this file only sets what differs)
+#
+# Laid out and coloured like the waybar it replaces: the desktop setup's TOP-Default-Laptop layout with the
+# Extra-Modern-Combined-Transparent style, in the SynthWave-84 wallust scheme (linux/wallust). Waybar module ->
+# wayle module: playerctl + cava -> cava (its click opens the media menu),
+# app drawer -> dashboard (also power), swaync -> notifications, network#speed -> network, backlight -> brightness,
+# temperature/cpu/memory/disk -> cpu/ram/storage, pulseaudio -> volume/microphone.
+# Not carried over: the window title, night light, the submap indicator, power/lock/keyboard buttons (power is in
+# the dashboard), waybar's layout/hint buttons, and the weather (wayle's needs a city in its config, which is
+# personal: add it in the settings app, which keeps it in runtime.toml on this machine).
+
+[general]
+font-sans = "JetBrainsMono Nerd Font"
+font-mono = "JetBrainsMono Nerd Font"
+
+[[bar.layout]]
+monitor = "*"
+left = [
+  "dashboard",             # the menu (power is in it); its icon size: styles/index.scss
+  "hyprland-workspaces",
+]
+center = [
+  "idle-inhibit",          # keep awake: no dimming, locking or sleep while on
+  "notifications",
+  "clock",
+  "cava",                  # audio visualiser (flat while nothing plays); click: the media player menu
+]
+right = [
+  "custom-minimized",
+  { name = "system", modules = ["cpu", "ram", "storage"] },
+  { name = "status", modules = [
+    "bluetooth", "network",          # icons a little larger: styles/index.scss
+    "brightness", "battery",
+    "volume", "microphone",
+    "custom-input",                  # EN / あ (fcitx5)
+  ] },
+]
+
+# The waybar style's look: no bar background (windows show through), bold text, modules in rounded groups
+[bar]
+inset-edge = 0.2
+inset-ends = 0.5
+background-opacity = 0
+button-icon-size = 0.55          # waybar's icons are about this size
+button-label-size = 0.85
+button-variant = "basic"
+button-bg-opacity = 0
+button-label-weight = "bold"
+button-rounding = "md"
+button-group-background = "bg-elevated"
+button-group-opacity = 90
+button-group-rounding = "lg"
+button-group-padding = 0.25
+
+# SynthWave '84, the SynthWave-84 wallust scheme (and kitty, Terminator, Windows Terminal, VS Code)
+[styling]
+theme-provider = "wayle"   # not wallust: wayle only reads colours from wallpapers it sets itself
+rounding = "md"
+
+[styling.palette]
+bg = "#111018"
+surface = "#1b1928"
+elevated = "#262335"
+fg = "#80ffff"          # waybar's text colour in this scheme
+fg-muted = "#6a5a7a"
+primary = "#ff7edb"
+red = "#fe4450"
+yellow = "#fede5d"
+green = "#72f1b8"
+blue = "#36f9f6"
+
+# The desktop setup's awww sets the wallpaper (wallpaper menu, wallust colours): wayle's own engine stays off
+[wallpaper]
+engine-enabled = false
+
+# Modules: as waybar shows them (icons only where waybar has no text; nothing when there's nothing to show).
+# Left out: keybind-mode (its auto-hide waits for an empty mode name, but Hyprland 0.57 reports "default", so it
+# always shows), keyboard-input and power (power is in the dashboard menu).
+[modules.notifications]
+label-show = false        # the bell (with a dot when there are unread ones), like waybar's swaync icon
+
+# The distro logo in SynthWave colours, made by linux/install.sh (configure_wayle_logo) from wayle's own
+[modules.dashboard]
+icon-override = "dotfiles-distro-logo"
+
+[modules.hyprland-workspaces]
+label-size = 0.85          # a little smaller than the bar's labels
+workspace-padding = 0.4
+
+[modules.idle-inhibit]
+label-show = false
+
+# cava stands in for the media module: a click opens its player menu (track, cover, controls)
+[modules.cava]
+left-click = "dropdown:media"
+
+# System stats: a click opens btop in a terminal (the desktop setup's helper, as waybar's memory module);
+# right-click on the CPU, GNOME's System Monitor (as waybar's)
+[modules.cpu]
+left-click = "$HOME/.config/hypr/scripts/WaybarScripts.sh --btop"
+right-click = "gnome-system-monitor"
+
+[modules.ram]
+left-click = "$HOME/.config/hypr/scripts/WaybarScripts.sh --btop"
+
+[modules.storage]
+left-click = "$HOME/.config/hypr/scripts/WaybarScripts.sh --btop"
+
+# Network: the icon opens wayle's Wi-Fi / connections menu; right-click, nmtui in a terminal (waybar's right-click).
+# No speed: wayle's netstat module is text only (no graph)
+[modules.network]
+label-show = false
+right-click = "$HOME/.config/hypr/scripts/WaybarScripts.sh --nmtui"
+
+[modules.bluetooth]
+label-show = false        # just the icon; a click opens its device menu
+
+# Minimized windows: the count and restore menu waybar's custom/minimized shows (linux/hypr/windows.sh)
+[[modules.custom]]
+id = "minimized"
+command = "$HOME/.config/hypr/dotfiles-windows.sh count"
+interval-ms = 2000
+format = "{{ text }}"
+tooltip-format = "{{ tooltip }}"
+hide-if-empty = true
+left-click = "$HOME/.config/hypr/dotfiles-windows.sh restore"
+
+# Input method (fcitx5 + Mozc, linux/hypr/dotfiles.lua): EN or あ. Click switches (as Ctrl-Space), right-click opens
+# fcitx5's settings. In place of the tray, whose fcitx5 and nm-applet icons it and the network group replace.
+# (wayle's keyboard-input shows Hyprland's layout, which stays English while Mozc types Japanese.)
+[[modules.custom]]
+id = "input"
+command = 'case "$(fcitx5-remote -n 2>/dev/null)" in mozc) echo "あ" ;; keyboard-*) echo "EN" ;; "") ;; *) fcitx5-remote -n ;; esac'
+interval-ms = 1000
+icon-name = "ld-keyboard-symbolic"
+hide-if-empty = true
+left-click = "fcitx5-remote -t"
+right-click = "fcitx5-configtool"

@@ -7,11 +7,13 @@
     }
   },
   "actions": [
-    { "command": { "action": "sendInput", "input": "\u001b[116;6u" }, "id": "User.byobuNewTab" }
+    { "command": { "action": "sendInput", "input": "\u001b[116;6u" }, "id": "User.byobuNewTab" },
+    { "command": { "action": "sendInput", "input": "\u001b[110;6u" }, "id": "User.byobuNewSession" }
   ],
   "keybindings": [
     { "keys": "ctrl+t", "id": "Terminal.OpenNewTab" },
-    { "keys": "ctrl+shift+t", "id": "User.byobuNewTab" }
+    { "keys": "ctrl+shift+t", "id": "User.byobuNewTab" },
+    { "keys": "ctrl+shift+n", "id": "User.byobuNewSession" }
   ],
   "schemes": [
     {

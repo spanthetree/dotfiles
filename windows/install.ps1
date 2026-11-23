@@ -126,6 +126,17 @@ function Test-DistroInstalled([string]$Name) {
   return @(wsl --list --quiet 2>$null | ForEach-Object { $_.Trim() }) -contains $Name
 }
 
+# Start-menu shortcut for the wallpaper picker (windows/wallpapers.ps1), with a hotkey: shortcut hotkeys work from the Start menu
+$WallpaperLink = Join-Path ([Environment]::GetFolderPath('Programs')) 'Wallpapers.lnk'
+function Install-WallpaperShortcut {
+  $lnk = (New-Object -ComObject WScript.Shell).CreateShortcut($WallpaperLink)
+  $lnk.TargetPath = Join-Path $PSHOME 'powershell.exe'
+  $lnk.Arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$WinClone\windows\wallpapers.ps1`""
+  $lnk.Hotkey = 'Ctrl+Alt+W'
+  $lnk.Description = 'Search Wallhaven and set the desktop wallpaper'
+  $lnk.Save()
+}
+
 function Uninstall-Dotfiles {
   $flags = if ($Yes) { ' --yes' } else { '' }
   # 1. Inside WSL: links, packages, the Windows apps it recorded, Windows Terminal, .wslconfig, YASB config
@@ -147,6 +158,9 @@ function Uninstall-Dotfiles {
     [Environment]::SetEnvironmentVariable('YASB_CONFIG_HOME', $null, 'User')
     Log 'YASB: YASB_CONFIG_HOME removed'
   }
+
+  # 2b. The wallpaper picker's shortcut (wallpapers it downloaded stay in Pictures\Wallpapers)
+  if (Test-Path $WallpaperLink) { Remove-Item $WallpaperLink; Log 'Wallpapers shortcut removed' }
 
   # 3. Windows apps still recorded (no WSL, or not removed there); Git stays, like the other core packages
   $left = @(if (Test-Path $Record) { Get-Content $Record | Where-Object { $_ -and $_ -ne 'Git.Git' } })
@@ -234,6 +248,10 @@ function Main {
   } else {
     Write-Warning 'yasbc.exe not found; start YASB once by hand'
   }
+
+  # Wallpaper picker in the Start menu (Ctrl-Alt-W)
+  Log 'Wallpapers: Start-menu shortcut, Ctrl-Alt-W'
+  Install-WallpaperShortcut
 
   # 4. Windows Terminal creates settings.json on first launch; the Linux installer patches it
   $wtSettings = Join-Path $env:LOCALAPPDATA 'Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json'

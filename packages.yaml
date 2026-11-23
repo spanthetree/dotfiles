@@ -15,6 +15,9 @@
 #   update:  shell run on every run when already installed
 #   post:    shell run on every run after installing
 #   when:    desktop | wsl; install only on such machines
+#            cosmic: only where the COSMIC desktop is chosen (install.cmd --cosmic; --no-cosmic drops it and offers to
+#            uninstall these, apt repo included)
+#            hyprland: the same for the Hyprland desktop setup (install.cmd --hyprland / --no-hyprland)
 #   interactive: true runs script/update/post/uninstall in the terminal, without the spinner, so a prompt
 #            the step can't avoid (e.g. a tool that runs sudo itself and asks again) is seen and answered
 #   tools:   (go, pyenv, rbenv entries only) tools installed with that language's own installer, after it.
@@ -22,6 +25,7 @@
 #              go:    go install <module path>@<version, default latest>   -> ~/go/bin
 #              pyenv: uv tool install <name><version, e.g. '>=24'>         -> ~/.local/bin, isolated env per tool
 #              rbenv: gem install <name> -v <version, e.g. '~> 8.0'>      -> rbenv's global Ruby
+#   Shell steps run in bash, with $DOT set to this repo.
 #   uninstall: shell that removes it (default: apt remove for apt, delete ~/.local/bin/<name> for github;
 #            script installs without one are only warned about)
 # Placeholders in asset/file: {tag} v1.2.3, {version} 1.2.3, {arch} amd64/arm64,
@@ -119,11 +123,9 @@ linux:
     github: boyter/scc
     asset: scc_Linux_{xarch}.tar.gz
 
-  - name: terminator   # terminal emulator; config in linux/terminator
-    when: desktop
   - name: fontconfig   # fc-cache, for the fonts below
     when: desktop
-  - name: jetbrainsmono-nerd-font   # Terminator's font; starship icons need a Nerd Font
+  - name: jetbrainsmono-nerd-font   # starship icons need a Nerd Font; VS Code's and the hyprbars title bars' font
     when: desktop
     skip_if: test -d ~/.local/share/fonts/JetBrainsMonoNerdFont
     script: |
@@ -146,12 +148,68 @@ linux:
       mv "$tmp" ~/.local/share/fonts/FantasqueSansMNerdFont  # only once complete: skip_if tests this dir
       fc-cache -f ~/.local/share/fonts
     uninstall: rm -rf ~/.local/share/fonts/FantasqueSansMNerdFont && { ! command -v fc-cache >/dev/null || fc-cache -f; }   # fontconfig may be removed first
+  # The Hyprland desktop setup, opt-in: ./install.cmd --hyprland (Ubuntu 26.04+). LinuxBeginnings/Ubuntu-Hyprland's
+  # installer (Hyprland from its PPA, waybar, rofi, swaync, hyprlock, ...) with its Hyprland config Hyprland-Dots;
+  # linux/hypr/dotfiles.lua and the entries below sit on top of it. Both pinned: bump INSTALLER / DOTS + VERSION to
+  # move on, after a test run. The installer still asks a few questions (its checklist opens with linux/hypr/preset.sh
+  # ticked), and so does an upgrade of its config, hence interactive. The entries below (hyprbars, hyprshell, wayle...)
+  # keep `when: desktop`: they work with any Hyprland, however it was installed.
+  - name: hyprland-desktop
+    when: hyprland
+    interactive: true
+    skip_if: command -v Hyprland >/dev/null && [ -d ~/.config/hypr ]
+    script: |
+      set -e
+      INSTALLER=e6a7331724b15e5df31c520900acf076dec8790a   # branch 26.04
+      . /etc/os-release
+      dpkg --compare-versions "$VERSION_ID" ge 26.04 || { echo "the Hyprland desktop setup needs Ubuntu 26.04+ (this is $VERSION_ID)"; exit 1; }
+      dir=~/.local/share/dotfiles/ubuntu-hyprland
+      rm -rf "$dir"; mkdir -p "$(dirname "$dir")"
+      git clone -q -b 26.04 https://github.com/LinuxBeginnings/Ubuntu-Hyprland "$dir"
+      git -C "$dir" checkout -q "$INSTALLER"
+      cd "$dir"
+      ./install.sh --install-ppa --preset "$DOT/linux/hypr/preset.sh"
+    # its config to the pinned version when the installed one is older (a fresh install takes the latest, so newer)
+    update: |
+      set -e
+      DOTS=170b69b846b1cd92ebc6d81c17393e17bed8d416 VERSION=2.3.28.3   # Hyprland-Dots main (no tag past v2.3.19)
+      have=$(for d in ~/.config/hypr/v[0-9]*; do [ -e "$d" ] && echo "${d##*/v}"; done | sort -V | tail -1)
+      [ -n "$have" ] || exit 0   # not its config (Hyprland set up some other way): nothing to upgrade
+      dpkg --compare-versions "$have" lt "$VERSION" || exit 0
+      echo "Hyprland config: $have -> $VERSION"
+      tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+      git clone -q https://github.com/LinuxBeginnings/Hyprland-Dots "$tmp/dots"
+      git -C "$tmp/dots" checkout -q "$DOTS"
+      cd "$tmp/dots" && bash copy.sh --express-upgrade
+    # its own uninstaller, told exactly what to remove: everything it lists except what this repo installs too
+    # (kitty and btop: packages.yaml; slurp: screen recording under COSMIC) and ~/.config/kitty (linux/kitty)
+    uninstall: |
+      set -e
+      INSTALLER=e6a7331724b15e5df31c520900acf076dec8790a
+      dir=~/.local/share/dotfiles/ubuntu-hyprland
+      if [ ! -x "$dir/uninstall.sh" ]; then
+        rm -rf "$dir"; mkdir -p "$(dirname "$dir")"
+        git clone -q -b 26.04 https://github.com/LinuxBeginnings/Ubuntu-Hyprland "$dir"
+        git -C "$dir" checkout -q "$INSTALLER"
+      fi
+      cd "$dir"
+      ./uninstall.sh --yes \
+        --packages "brightnessctl cava cliphist fastfetch ffmpegthumbnailer grim polkit-kde-agent-1 imagemagick
+          qt-style-kvantum qt-style-kvantum-themes libqt5quick5 libqt5qml5 qt6-declarative-dev mousepad mpv mpv-mpris
+          nvtop nwg-displays nwg-look pamixer pavucontrol playerctl qalculate-gtk qt5ct qt6-svg qt6ct swappy
+          sway-notification-center swww thunar thunar-archive-plugin thunar-volman tumbler wallust waybar wl-clipboard
+          wlogout xdg-desktop-portal-hyprland yad yt-dlp xarchiver hyprland xfce-polkit" \
+        --dirs "ags btop cava fastfetch hypr Kvantum qt5ct qt6ct rofi swappy swaync Thunar wallust waybar wlogout"
+      cd ~ && rm -rf "$dir"
   - name: hyprbars   # Hyprland title bars: drag to move, minimize/maximize/close; settings in linux/hypr/dotfiles.lua
     when: desktop
     interactive: true   # hyprpm runs sudo itself, and can ask for the password again
-    # installed = built and enabled (a failed build is listed too, as "enabled: Plugin failed to build")
+    # installed = built and enabled (a failed build is listed too, as "enabled: Plugin failed to build").
+    # Only from inside a running Hyprland (as hyprfocus and Hyprspace): `hyprpm add` asks the running instance for
+    # its version to pick the plugin commit that matches it; without one it builds the repo's latest, which may not
+    # build against this Hyprland. On a new machine (--hyprland from GNOME): run the installer again inside Hyprland.
     skip_if: >-
-      ! command -v hyprpm >/dev/null ||
+      ! command -v hyprpm >/dev/null || [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] ||
       hyprpm list 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | grep -A1 'Plugin hyprbars$' | grep -q 'enabled: true'
     # hyprpm builds against the system's Hyprland headers: on Ubuntu those of its libraries come from the same PPA,
     # they need C++23 (<print>), which Ubuntu 24.04's default g++ 13 lacks (so g++-14 there), and they include glslang
@@ -167,11 +225,13 @@ linux:
       hyprpm update
       if hyprpm list 2>/dev/null | grep -q hyprland-plugins; then hyprpm update -f; else hyprpm add https://github.com/hyprwm/hyprland-plugins; fi
       hyprpm enable hyprbars
-      [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || hyprpm reload   # outside Hyprland: dotfiles.lua loads it at login
+      hyprpm reload
       hyprpm list | sed 's/\x1b\[[0-9;]*m//g' | grep -A1 'Plugin hyprbars$' | grep -q 'enabled: true' ||
         { echo "hyprbars didn't build: 'hyprpm -v update -f' shows why"; exit 1; }
     update: |   # rebuilds it after a Hyprland update, or with -f after a compiler change
       command -v hyprpm >/dev/null || exit 0
+      # hyprpm needs the running Hyprland (its version, and the reload): from another desktop, wait for a run inside it
+      [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || { echo "hyprbars: Hyprland isn't running here; checked on a run inside it"; exit 0; }
       # its build packages too: an Ubuntu upgrade (or a Hyprland reinstall) can remove them
       missing=$(for p in g++-14 glslang-dev liblua5.4-dev libhyprutils-dev libaquamarine-dev libhyprlang-dev libhyprcursor-dev libhyprgraphics-dev libxcb-errors-dev; do
         dpkg-query -W -f='${db:Status-Abbrev}' "$p" 2>/dev/null | grep -q '^ii' || echo "$p"; done)
@@ -188,14 +248,188 @@ linux:
     uninstall: >-
       hyprpm disable hyprbars; hyprpm remove https://github.com/hyprwm/hyprland-plugins; hyprpm reload;
       sudo apt-get remove -y -qq g++-14 glslang-dev liblua5.4-dev libhyprutils-dev libaquamarine-dev libhyprlang-dev libhyprcursor-dev libhyprgraphics-dev libxcb-errors-dev
-  # Japanese input under Hyprland: fcitx5 + Mozc, Ctrl-Space (started in linux/hypr/dotfiles.lua). GNOME keeps ibus
-  # (ibus-mozc below): with ibus installed, im-config's automatic choice stays ibus. Only where Hyprland is.
-  - {name: fcitx5, when: desktop, skip_if: &no-hyprland '! command -v Hyprland >/dev/null'}
-  - {name: fcitx5-mozc, when: desktop, skip_if: *no-hyprland}
+  - name: hyprfocus   # Hyprland: flash on the window that gets keyboard focus; settings in linux/hypr/dotfiles.lua
+    when: desktop
+    interactive: true   # hyprpm, as for hyprbars
+    # the same hyprland-plugins repo as hyprbars (built and updated by its entry above): only enabled here.
+    # Skipped where that repo isn't there (no hyprbars: its build failed, or no Hyprland)
+    skip_if: >-
+      ! command -v hyprpm >/dev/null || [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] ||
+      ! hyprpm list 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | grep -q 'Plugin hyprfocus$' ||
+      hyprpm list 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | grep -A1 'Plugin hyprfocus$' | grep -q 'enabled: true'
+    script: |
+      set -e
+      hyprpm enable hyprfocus
+      [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || hyprpm reload
+    uninstall: "! command -v hyprpm >/dev/null || { hyprpm disable hyprfocus; hyprpm reload; }"
+  - name: hyprspace   # Hyprland workspace overview on tap-Super (drag windows between workspaces); settings in linux/hypr/dotfiles.lua
+    when: desktop
+    interactive: true   # hyprpm, as for hyprbars
+    # Built like hyprbars (whose entry above installs the build packages and, on update, rebuilds every hyprpm plugin)
+    skip_if: >-
+      ! command -v hyprpm >/dev/null || [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] ||
+      hyprpm list 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | grep -A1 'Plugin Hyprspace$' | grep -q 'enabled: true'
+    script: |
+      set -e
+      CXX=g++; [ "$(g++ -dumpversion | cut -d. -f1)" -ge 14 ] || CXX=g++-14
+      export CXX CPATH=/usr/include/lua5.4${CPATH:+:$CPATH}
+      hyprpm list 2>/dev/null | grep -q 'Repository Hyprspace' || hyprpm add https://github.com/KZDKM/Hyprspace
+      hyprpm enable Hyprspace
+      [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || hyprpm reload
+      hyprpm list | sed 's/\x1b\[[0-9;]*m//g' | grep -A1 'Plugin Hyprspace$' | grep -q 'enabled: true' ||
+        { echo "Hyprspace didn't build: 'hyprpm -v update -f' shows why"; exit 1; }
+    uninstall: "! command -v hyprpm >/dev/null || { hyprpm disable Hyprspace; hyprpm remove https://github.com/KZDKM/Hyprspace; hyprpm reload; }"
+  - name: wayle   # Hyprland panel (bar, notifications, OSD), tried in place of waybar: linux/hypr/panel.sh switches, config in linux/wayle
+    when: desktop
+    # Not packaged for Ubuntu: built from its latest release tag with cargo (Rust 1.93+: 26.04's cargo) into ~/.local
+    skip_if: "[ -x ~/.local/bin/wayle ] || ! command -v Hyprland >/dev/null"
+    script: |
+      set -e
+      sudo apt-get install -y -qq cargo pkg-config cmake clang build-essential libgtk-4-dev libgtk4-layer-shell-dev libgtksourceview-5-dev libpulse-dev libfftw3-dev libpipewire-0.3-dev libudev-dev
+      tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+      tag=$(git ls-remote --tags --refs --sort=-v:refname https://github.com/wayle-rs/wayle 'v*' | head -1 | sed 's|.*/||')
+      git clone -q --depth 1 --branch "$tag" https://github.com/wayle-rs/wayle "$tmp/wayle"
+      cd "$tmp/wayle"
+      cargo install --locked --root ~/.local --path wayle
+      cargo install --locked --root ~/.local --path crates/wayle-settings
+      ~/.local/bin/wayle icons setup   # its icon set, into ~/.local/share/wayle/icons (needs the source tree)
+    uninstall: >-
+      { ~/.local/bin/wayle panel stop 2>/dev/null; true; } &&
+      { cargo uninstall --root ~/.local wayle 2>/dev/null; cargo uninstall --root ~/.local wayle-settings 2>/dev/null; true; } &&
+      rm -rf ~/.local/bin/wayle ~/.local/bin/wayle-settings ~/.local/share/wayle &&
+      sudo apt-get remove -y -qq libgtksourceview-5-dev libfftw3-dev libpipewire-0.3-dev libpulse-dev
+  - name: spotify   # Spotify's official app, from its snap (Spotify's own Linux package; snap keeps it updated)
+    when: desktop
+    skip_if: "! command -v snap >/dev/null || snap list spotify >/dev/null 2>&1"
+    script: sudo snap install spotify
+    uninstall: sudo snap remove spotify
+  # COSMIC (System76's desktop), opt-in: ./install.cmd --cosmic. Chosen at the login screen next to GNOME and Hyprland.
+  # Not packaged by Ubuntu or System76 for Ubuntu: from the community PPA hepp3n/cosmic-epoch (its key by fingerprint).
+  # Its theme and keys: linux/cosmic. It brings its own panel, dock, launcher, switcher, overview and title bars.
+  - name: cosmic-session
+    when: cosmic
+    repo:
+      name: cosmic-epoch
+      key: https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xEB141BFC014828F92C2EF883210C6A47471454A0
+      url: https://ppa.launchpadcontent.net/hepp3n/cosmic-epoch/ubuntu
+  - name: wl-screenrec   # screen recording under COSMIC (linux/desktop/record.sh): wf-recorder needs wlroots' screencopy
+    when: cosmic
+    skip_if: "[ -x ~/.local/bin/wl-screenrec ]"
+    script: |
+      set -e
+      sudo apt-get install -y -qq cargo pkg-config clang libdrm-dev libavcodec-dev libavformat-dev libavutil-dev libavfilter-dev libavdevice-dev libswscale-dev
+      cargo install --locked --root ~/.local wl-screenrec
+    update: "[ ! -x ~/.local/bin/wl-screenrec ] || cargo install --locked --root ~/.local wl-screenrec"   # a no-op when current
+    uninstall: "{ cargo uninstall --root ~/.local wl-screenrec || rm -f ~/.local/bin/wl-screenrec; }"
+  # COSMIC panel applets, put in the panel by COSMIC_KEYS in linux/install.sh (as wayle's cpu/ram and idle-inhibit).
+  # System monitor (leonardo-panseri/cosmic-ext-applet-sysmon): CPU, RAM, GPU, disk and network as numbers in the
+  # panel, details and graphs in its popup; right click opens btop (its process_monitor: COSMIC_KEYS). No package:
+  # built with cargo at a pinned commit (bump COMMIT to update), into /usr/local, where the panel finds applets
+  - name: cosmic-ext-applet-sysmon
+    when: cosmic
+    skip_if: "[ -x /usr/local/bin/cosmic-ext-applet-sysmon ]"
+    script: |
+      set -e
+      COMMIT=3b8408e5a0dab4829f9f63e0a329de63be8ed19e
+      ID=io.github.leonardo_panseri.cosmic-ext-applet-sysmon
+      sudo apt-get install -y -qq cargo git pkg-config libwayland-dev libxkbcommon-dev
+      tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+      git clone -q https://github.com/leonardo-panseri/cosmic-ext-applet-sysmon "$tmp/src"
+      git -C "$tmp/src" checkout -q "$COMMIT"
+      cargo build --release --locked --manifest-path "$tmp/src/Cargo.toml" --bin cosmic-ext-applet-sysmon
+      sudo install -Dm755 "$tmp/src/target/release/cosmic-ext-applet-sysmon" /usr/local/bin/cosmic-ext-applet-sysmon
+      # the desktop entry is generated by the build (build.rs)
+      sudo install -Dm644 "$tmp/src/target/xdgen/app.desktop" "/usr/local/share/applications/$ID.desktop"
+      sudo install -Dm644 "$tmp/src/resources/icon.svg" "/usr/local/share/icons/hicolor/scalable/apps/$ID.svg"
+    uninstall: >-
+      sudo rm -f /usr/local/bin/cosmic-ext-applet-sysmon
+      /usr/local/share/applications/io.github.leonardo_panseri.cosmic-ext-applet-sysmon.desktop
+      /usr/local/share/icons/hicolor/scalable/apps/io.github.leonardo_panseri.cosmic-ext-applet-sysmon.svg
+  # Caffeine (Oussamaberchi/caffeine-cosmic): keep awake, no dimming, locking or sleep, with a timer. No package:
+  # built with cargo at a pinned commit (bump COMMIT to update), into /usr/local, where the panel finds applets
+  - name: cosmic-caffeine
+    when: cosmic
+    skip_if: "[ -x /usr/local/bin/cosmic-caffeine ]"
+    script: |
+      set -e
+      COMMIT=83fdd939aead5fed81c5714825180468f5b86691
+      sudo apt-get install -y -qq cargo git pkg-config libssl-dev libwayland-dev libxkbcommon-dev
+      tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+      git clone -q https://github.com/Oussamaberchi/caffeine-cosmic "$tmp/src"
+      git -C "$tmp/src" checkout -q "$COMMIT"
+      # not --locked: the commit's Cargo.lock is out of date with its Cargo.toml; cargo updates only what it must
+      cargo build --release --manifest-path "$tmp/src/Cargo.toml"
+      sudo install -Dm755 "$tmp/src/target/release/cosmic-caffeine" /usr/local/bin/cosmic-caffeine
+      sudo install -Dm644 "$tmp/src/assets/com.github.cosmic-caffeine.desktop" /usr/local/share/applications/com.github.cosmic-caffeine.desktop
+      sudo install -Dm644 "$tmp/src/assets/oussama-berchi-caffeine-cosmic.svg" /usr/local/share/icons/hicolor/scalable/apps/oussama-berchi-caffeine-cosmic.svg
+    uninstall: >-
+      sudo rm -f /usr/local/bin/cosmic-caffeine /usr/local/share/applications/com.github.cosmic-caffeine.desktop
+      /usr/local/share/icons/hicolor/scalable/apps/oussama-berchi-caffeine-cosmic.svg
+  # pivot (Sigma-studios/pivot): Alt-Tab with live window previews under COSMIC; a quick tap flips to the previous
+  # window, as in GNOME. Bound in linux/cosmic/shortcuts.ron (COSMIC's own switcher while pivot is missing), started at
+  # login by linux/cosmic/pivot.desktop. Early software: built with cargo at a pinned commit (bump COMMIT and the one in
+  # skip_if to update). skip_if reads cargo's record of the build, so another commit (or a local build) is rebuilt
+  - name: pivot
+    when: cosmic
+    skip_if: >-
+      [ -x ~/.local/bin/pivot ] &&
+      cargo install --list --root ~/.local 2>/dev/null | grep -q '^pivot .*[?]rev=9da347027e97e94b3e5e3082ff0841745bd66cf6'
+    script: |
+      set -e
+      COMMIT=9da347027e97e94b3e5e3082ff0841745bd66cf6
+      sudo apt-get install -y -qq cargo git pkg-config libgbm-dev libxkbcommon-dev
+      cargo install --locked --force --root ~/.local --git https://github.com/Sigma-studios/pivot --rev "$COMMIT" pivot
+      ~/.local/bin/pivot quit 2>/dev/null || true   # the running daemon: the next Alt+Tab starts the new one
+      rm -f "${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/pivot.build"   # an older recipe's build stamp
+    uninstall: >-
+      { cargo uninstall --root ~/.local pivot || rm -f ~/.local/bin/pivot; } &&
+      rm -f "${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/pivot.build"
+  # skwd-wall (liixini/skwd-wall): wallpaper picker under COSMIC (Super-W, linux/cosmic/shortcuts.ron), with a built-in
+  # Wallhaven browser that downloads and applies. It draws the wallpaper itself (skwd-walld) over COSMIC's background.
+  # Beta, and its Debian packages are new: the release's .debs, pinned with their sha256 (bump all four lines to
+  # update). Its optional AI search models (~1 GB, Recommends) are left out. The package starts skwd-walld in every
+  # graphical session; here it only starts with COSMIC's session (cosmic-session.target).
+  - name: skwd-wall
+    when: cosmic
+    skip_if: "[ \"$(dpkg-query -W -f='${Version}' skwd-wall-v2 2>/dev/null)\" = 1.0.0~beta.29-1 ]"
+    script: |
+      set -e
+      base=https://github.com/liixini/skwd-wall/releases/download/v1.0.0-beta.29
+      tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+      cd "$tmp"
+      while read -r sum f; do
+        curl -fsSLO "$base/$f"
+        echo "$sum  $f" | sha256sum -c --quiet
+      done <<'EOF'
+      50b07a0596841b8b6f0811f6f94251811807111cc0bf0ff4befcdeceec9b8b4c skwd-paper_1.0.0.beta.29-1_amd64.deb
+      327838c321cb36311fb0f4ac86b02bad89d29f128bcb6da0cecf0c9012937eb9 skwd-deck_1.0.0.beta.29-1_amd64.deb
+      657d4da55c406ee33e5da526ead5e9c7cd76442d38f212d6c9e637c2c25fcc1c skwd-wall-v2_1.0.0.beta.29-1_amd64.deb
+      EOF
+      sudo apt-get install -y -qq --no-install-recommends ./*.deb
+      # not in every session (default.target, kept off through its upgrades): COSMIC's only (post)
+      sudo systemctl --global disable skwd-walld.service
+    post: |
+      set -e
+      systemctl --user show-environment >/dev/null 2>&1 || exit 0   # no systemd user manager here (e.g. ssh, container)
+      systemctl --user add-wants cosmic-session.target skwd-walld.service
+      if [ "$XDG_CURRENT_DESKTOP" = COSMIC ]; then systemctl --user start skwd-walld.service; fi
+    uninstall: |
+      systemctl --user disable --now skwd-walld.service 2>/dev/null || true
+      sudo apt-get remove -y -qq skwd-wall-v2 skwd-deck skwd-paper
+  - {name: slurp, when: desktop}   # picks the area for Ctrl-Alt-Shift-A screen recording (linux/desktop/record.sh)
+  - {name: wf-recorder, when: desktop, skip_if: &no-hyprland '! command -v Hyprland >/dev/null && [ ! -e "${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/desktop-hyprland" ]'}   # Ctrl-Alt-Shift-R screen recording (linux/desktop/record.sh)
+  # monitor layouts that switch by themselves on plug/unplug (docking). Profiles name this machine's screens, so they
+  # live in the untracked ~/.config/kanshi/config; linux/hypr/dotfiles.lua starts kanshi only when that file exists
+  - {name: kanshi, when: desktop, skip_if: *no-hyprland}
+  # Japanese input under Hyprland and COSMIC (installed or chosen: --hyprland / --cosmic): fcitx5 + Mozc, Ctrl-Space (started by linux/hypr/dotfiles.lua, and under
+  # COSMIC by linux/cosmic/fcitx5.desktop). GNOME keeps ibus (ibus-mozc below): with ibus installed, im-config's
+  # automatic choice stays ibus. Only where Hyprland or COSMIC is.
+  - {name: fcitx5, when: desktop, skip_if: &no-fcitx '! command -v Hyprland >/dev/null && ! command -v cosmic-session >/dev/null && [ ! -e "${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/desktop-hyprland" ] && [ ! -e "${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/desktop-cosmic" ]'}
+  - {name: fcitx5-mozc, when: desktop, skip_if: *no-fcitx}
   # GTK 3/4 and Qt 5/6 modules, for XWayland and older apps. The metapackage itself: removing one of its parts
   # by name would make apt mark the other parts manual, and autoremove would leave them
-  - {name: fcitx5-frontend-all, when: desktop, skip_if: *no-hyprland}
-  - {name: fcitx5-config-qt, when: desktop, skip_if: *no-hyprland}       # fcitx5-configtool: input methods, keys
+  - {name: fcitx5-frontend-all, when: desktop, skip_if: *no-fcitx}
+  - {name: fcitx5-config-qt, when: desktop, skip_if: *no-fcitx}       # fcitx5-configtool: input methods, keys
   # Japanese input under Ubuntu's GNOME: ibus + Mozc, Ctrl-Space too (input sources and key set by linux/install.sh)
   - {name: ibus-mozc, when: desktop, skip_if: '! command -v gnome-shell >/dev/null'}
   - name: hyprshell   # Hyprland Alt-Tab switcher + launcher; config in linux/hyprshell, started by linux/hypr/dotfiles.lua

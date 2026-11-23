@@ -79,6 +79,12 @@ bind -n MouseDown1Status {
 # In vim, Ctrl-W passes through to vim; elsewhere it asks before closing.
 set -g @in-vim '#{m/r:^(n?vim?|vimdiff|view)$,#{pane_current_command}}'
 bind -n C-S-t new-window -c '#{pane_current_path}'
+# Ctrl-Shift-N: new session (a new group of tabs), in the same folder; byobu's own is Ctrl-Shift-F2. Windows Terminal
+# and kitty send it as ESC[110;6u, as Ctrl-Shift-T
+bind -n C-S-n new-session -c '#{pane_current_path}'
+# Closing a session's last tab moves the window to the most recent other session (tmux's default detaches it, and
+# byobu, then the terminal, exits). Only the very last tab of the last session ends byobu.
+set -g detach-on-destroy off
 # F2 renames the tab, F8 opens one (swapped from byobu's defaults)
 bind -n F2 command-prompt -p '(rename-window) ' "rename-window '%%'"
 bind -n F8 new-window -c '#{pane_current_path}'

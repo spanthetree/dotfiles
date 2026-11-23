@@ -11,6 +11,13 @@ if (( $#commands[(i)lesspipe(|.sh)] )); then
   export LESSOPEN="| /usr/bin/env $commands[(i)lesspipe(|.sh)] %s 2>&-"
 fi
 
+# Japanese input under COSMIC: fcitx5 (linux/cosmic/fcitx5.desktop starts it) for XWayland, Qt and SDL apps; native
+# Wayland GTK apps reach it through the compositor. COSMIC's session start runs this file. Hyprland sets the same
+# in linux/hypr/dotfiles.lua; GNOME keeps ibus.
+if [[ $XDG_CURRENT_DESKTOP == COSMIC && -x /usr/bin/fcitx5 ]]; then
+  export XMODIFIERS=@im=fcitx QT_IM_MODULE=fcitx SDL_IM_MODULE=fcitx
+fi
+
 # Auto-start byobu. Opt out per machine: touch ~/.config/byobu/disable-autolaunch
 # Skipped inside tmux: byobu tabs are login shells too, and the launcher would nest or exit
 [[ -z $TMUX ]] && { _byobu_sourced=1 . /usr/bin/byobu-launch 2>/dev/null || true; }

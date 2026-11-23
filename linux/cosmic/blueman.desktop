@@ -1,0 +1,13 @@
+[Desktop Entry]
+# blueman's tray applet, kept out of COSMIC (install.cmd --cosmic): COSMIC's own Bluetooth applet in the panel opens a
+# dropdown, while blueman's tray icon in the status area opens blueman-manager. Linked to
+# ~/.config/autostart/blueman.desktop, which shadows /etc/xdg/autostart/blueman.desktop (the same name is what
+# overrides it); everywhere else it starts as before.
+Type=Application
+Name=Blueman Applet
+Comment=Blueman Bluetooth Manager
+Icon=blueman
+TryExec=blueman-applet
+Exec=blueman-applet
+Terminal=false
+NotShowIn=COSMIC;

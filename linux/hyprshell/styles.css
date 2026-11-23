@@ -1,0 +1,85 @@
+/* hyprshell's look (Alt-Tab switcher, Super-Space overview + launcher). Linked to ~/.config/hyprshell/styles.css,
+   where hyprshell reads it and reloads it on save. Only overrides: hyprshell's own styles fill in the rest
+   (`hyprshell config generate` lists every class). GTK 4 CSS: a subset of web CSS.
+   A quiet dark card; SynthWave '84's pink only marks the selected window, its cyan the hovered one. */
+:root {
+    --bg-window-color: rgba(23, 21, 33, 0.88);   /* the card behind everything */
+    --bg-color: rgba(38, 35, 53, 0.92);          /* each window */
+    --bg-color-hover: rgba(52, 41, 79, 0.95);
+
+    --border-color: rgba(255, 255, 255, 0.07);
+    --border-color-active: rgba(255, 126, 219, 0.95);
+    --border-size: 2px;
+    --border-style: solid;
+    --border-radius: 10px;
+
+    --text-color: rgba(240, 239, 241, 0.92);
+    --window-padding: 10px;
+}
+
+.monitor {
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+
+.client {
+    font-size: 0.95rem;
+    font-weight: 500;
+    margin: 4px;
+    transition: background 120ms ease, border-color 120ms ease;
+}
+
+.client.active {
+    background: rgba(255, 126, 219, 0.10);
+    box-shadow: 0 0 14px rgba(255, 126, 219, 0.35);
+}
+
+.client:hover {
+    border-color: rgba(54, 249, 246, 0.55);
+}
+
+.client-image {
+    margin-top: 6px;
+    margin-bottom: 6px;
+}
+
+.workspace {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+/* Super-Space: hyprshell pins the launcher to the screen's top edge; this margin puts it below the workspace
+   strip (config.toml: top_offset = 420), so the two sit mid-screen on a 1440 px tall screen */
+.launcher {
+    margin-top: 620px;
+    border-radius: var(--border-radius, 10px);
+    background: var(--bg-window-color);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+
+/* Super-Space launcher: smaller text and icons than hyprshell's defaults (in brackets) */
+.launcher-input {
+    font-size: 1.1rem;          /* 1.5rem */
+    padding: 6px 10px;
+}
+
+.launcher-item-inner {
+    font-size: 1.05rem;         /* 1.5rem */
+    padding: 2px 8px;
+}
+
+.launcher-item-image,
+.launcher-plugin-image {
+    -gtk-icon-size: 32px;       /* 48px */
+}
+
+.launcher-item-details {
+    font-size: 0.75rem;         /* 0.9rem */
+}
+
+.launcher-key {
+    font-size: 0.85rem;         /* 1.2rem */
+}
+
+.launcher-plugin-key {
+    font-size: 0.75rem;         /* 0.9rem */
+}
