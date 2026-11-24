@@ -9,6 +9,8 @@
 #   github:  owner/repo; installs a binary from the latest release into ~/.local/bin, and updates it on later runs
 #            asset: release file name (.tar.gz/.tar.xz/.zip, or the bare binary)
 #            file: path of the binary inside the archive (default: name)
+#            extra: more files from the same archive, each into ~/.local/bin under its own name (e.g. tenv's proxies);
+#            updated and removed with it
 #   script:  shell that installs it
 #   skip_if: shell test; when it succeeds the install is skipped
 #            (default for github/script: the command <name> exists)
@@ -18,16 +20,20 @@
 #            cosmic: only where the COSMIC desktop is chosen (install.cmd --cosmic; --no-cosmic drops it and offers to
 #            uninstall these, apt repo included)
 #            hyprland: the same for the Hyprland desktop setup (install.cmd --hyprland / --no-hyprland)
+#            in-hyprland: the Hyprland layer (plugins, panel, switcher...): only on a run from inside a Hyprland
+#            session, or where the Hyprland desktop is chosen. Elsewhere skipped, neither installed, updated nor removed
 #   interactive: true runs script/update/post/uninstall in the terminal, without the spinner, so a prompt
 #            the step can't avoid (e.g. a tool that runs sudo itself and asks again) is seen and answered
-#   tools:   (go, pyenv, rbenv entries only) tools installed with that language's own installer, after it.
+#   tools:   (go, pyenv, rbenv, krew entries only) tools installed with that language's own installer, after it.
 #            Each is a name, or {name, version}. Removing a line uninstalls that tool.
 #              go:    go install <module path>@<version, default latest>   -> ~/go/bin
 #              pyenv: uv tool install <name><version, e.g. '>=24'>         -> ~/.local/bin, isolated env per tool
 #              rbenv: gem install <name> -v <version, e.g. '~> 8.0'>      -> rbenv's global Ruby
-#   Shell steps run in bash, with $DOT set to this repo.
+#              krew:  kubectl krew install <name> (no version)            -> ~/.krew, as `kubectl <name>`
+#   Shell steps run in bash, with $DOT set to this repo. For apt packages a step needs, use "$DOT/linux/apt-deps"
+#   install|remove (and `own` after installing a release .deb), never apt-get install/remove: see that file
 #   uninstall: shell that removes it (default: apt remove for apt, delete ~/.local/bin/<name> for github;
-#            script installs without one are only warned about)
+#            script installs without one are only warned about). An entry's apt `repo` goes with it.
 # Placeholders in asset/file: {tag} v1.2.3, {version} 1.2.3, {arch} amd64/arm64,
 #   {m} x86_64/aarch64, {xarch} x86_64/arm64
 # Windows keys: id; font: font file prefix (a hand-installed font isn't listed by winget).
@@ -36,7 +42,7 @@
 # machine. `install.sh --adopt` once treats everything already installed from this list as its own.
 
 settings:
-  autoremove: true   # after uninstalling apt packages, also `apt-get autoremove` their leftover dependencies
+  autoremove: true   # after uninstalling apt packages, also remove the dependencies that left unneeded (only those: never a system-wide autoremove)
   upgrade: true      # each run also `apt-get upgrade`s the whole system (GitHub binaries update to their latest release regardless)
 
 linux:
@@ -55,7 +61,12 @@ linux:
   - byobu
   - tmux
   - vim
-  - fzf
+  - name: fzf    # from its release, not apt (Ubuntu 24.04's is 0.44); shell keys from `fzf --zsh` in zshrc
+    github: junegunn/fzf
+    asset: fzf-{version}-linux_{arch}.tar.gz
+    # ours even where apt's is. apt's /usr/bin/fzf comes first on PATH: the installer removes it where it installed
+    # it (an older `- fzf` line); one installed some other way stays until `sudo apt remove fzf`
+    skip_if: test -x ~/.local/bin/fzf
   - ripgrep
   - fd-find
   - zoxide
@@ -63,12 +74,43 @@ linux:
   - bat
   - direnv
   - btop
-  - ncdu
-  - name: tealdeer
-    post: '[ -d ~/.cache/tealdeer ] || tldr --update >/dev/null 2>&1 || true'
+  # tealdeer (`tldr`): from its release, not apt: Ubuntu 24.04's 1.6 downloads its pages from a URL that's gone.
+  # Config in linux/tealdeer (SynthWave colours; refreshes its pages weekly by itself). apt's /usr/bin/tldr comes first
+  # on PATH: the installer removes it where it installed it (an older `- tealdeer` line)
+  - name: tldr
+    github: tealdeer-rs/tealdeer
+    asset: tealdeer-linux-{m}-musl
+    skip_if: test -x ~/.local/bin/tldr
+    post: ~/.local/bin/tldr --quiet --update   # its pages: fetched on the first run, current on each one after
+    uninstall: rm -rf ~/.local/bin/tldr ~/.cache/tealdeer
   - name: starship
     script: curl -fsSL https://starship.rs/install.sh | sh -s -- -y -b ~/.local/bin >/dev/null
     uninstall: rm -f ~/.local/bin/starship
+  - name: carapace   # completions for ~1000 commands (zshrc; a tool's own completion, e.g. kubectl's, still wins)
+    github: carapace-sh/carapace-bin
+    asset: carapace-bin_{version}_linux_{arch}.tar.gz
+  - name: navi       # cheatsheet picker: Ctrl-G in zsh (zshrc). Cheats: denisidoro/cheats, plus your own .cheat files
+    github: denisidoro/navi
+    asset: navi-{tag}-{m}-unknown-linux-musl.tar.gz
+    file: ./navi
+    # a clone, not `navi repo add` (2.24 fails copying its own temp dir); pulled on each run
+    post: >-
+      d=~/.local/share/navi/cheats/denisidoro__cheats;
+      if [ -d "$d/.git" ]; then git -C "$d" pull -q --ff-only; else git clone -q --depth 1 https://github.com/denisidoro/cheats "$d"; fi
+    uninstall: rm -rf ~/.local/bin/navi ~/.local/share/navi/cheats/denisidoro__cheats
+  - name: mise       # per-project tool versions (mise.toml, .tool-versions); activated in zshrc after pyenv/rbenv/nvm
+    script: curl -fsSL https://mise.run | MISE_INSTALL_PATH=~/.local/bin/mise sh >/dev/null
+    update: ~/.local/bin/mise self-update -y >/dev/null
+    # the tools and runtimes it installed too (your ~/.config/mise stays)
+    uninstall: rm -rf ~/.local/bin/mise ~/.local/share/mise ~/.local/state/mise ~/.cache/mise
+  # tmux hint-mode copy (linux/byobu/profile.tmux): F12 F labels URLs, paths, IPs, hashes on screen; type the label to
+  # copy. Loads from its binary alone (tmux-fingers load-config), no plugin clone
+  - name: tmux-fingers
+    github: Morantron/tmux-fingers
+    asset: tmux-fingers-{version}-linux-{m}
+  - name: kitten     # kitty's helper: `icat` alias shows images in kitty (also inside byobu). Comes with kitty on a desktop
+    github: kovidgoyal/kitty
+    asset: kitten-linux-{arch}
 
   # modern replacements for classic tools (old one in the comment)
   - duf          # df
@@ -76,7 +118,6 @@ linux:
   - sd           # sed find/replace
   - hexyl        # xxd/hexdump
   - hyperfine    # time, benchmarking
-  - entr         # rerun on file change
   - just         # make, as a task runner
   - name: dust   # du
     github: bootandy/dust
@@ -97,12 +138,6 @@ linux:
   - name: choose # cut / awk '{print $2}'
     github: theryangeary/choose
     asset: choose-{m}-unknown-linux-musl
-  - libxcb-render0 # jless links these (clipboard)
-  - libxcb-shape0
-  - libxcb-xfixes0
-  - name: jless  # JSON viewer (x86_64 only)
-    github: PaulJuliusMartinez/jless
-    asset: jless-{tag}-{m}-unknown-linux-gnu.zip
   - name: fx     # JSON viewer
     github: antonmedv/fx
     asset: fx_linux_{arch}
@@ -122,6 +157,16 @@ linux:
   - name: scc    # cloc/tokei (tokei has no recent release binaries)
     github: boyter/scc
     asset: scc_Linux_{xarch}.tar.gz
+  - name: jaq    # jq, faster (same filters)
+    github: 01mf02/jaq
+    asset: jaq-{m}-unknown-linux-musl
+  - gron         # JSON to greppable lines (gron -u back)
+  - jc           # command output (ifconfig, dig, netstat...) to JSON: `dig x | jc --dig`
+  - lnav         # log viewer: merges, filters, SQL over logs
+  - visidata     # vd: spreadsheet TUI for CSV/JSON/SQLite/...
+  - name: rare   # histograms, tables, sums from log lines (regex/dissect)
+    github: zix99/rare
+    asset: rare_{version}_Linux_{xarch}.tar.gz
 
   - name: fontconfig   # fc-cache, for the fonts below
     when: desktop
@@ -137,7 +182,7 @@ linux:
     uninstall: rm -rf ~/.local/share/fonts/JetBrainsMonoNerdFont && { ! command -v fc-cache >/dev/null || fc-cache -f; }   # fontconfig may be removed first
   - name: kitty   # terminal emulator; config in linux/kitty (dotfiles.conf: byobu keys, theme.conf: the look)
     when: desktop
-  - name: fantasquesansmono-nerd-font   # kitty's font (linux/kitty/theme.conf)
+  - name: fantasquesansmono-nerd-font   # the Hyprland desktop setup's font (kitty's was, before Departure Mono)
     when: desktop
     # a Hyprland desktop setup may have installed it already (its own copy and its own uninstall): then skipped
     skip_if: test -d ~/.local/share/fonts/FantasqueSansMNerdFont || fc-list | grep -q 'FantasqueSansM Nerd Font Mono'
@@ -148,6 +193,26 @@ linux:
       mv "$tmp" ~/.local/share/fonts/FantasqueSansMNerdFont  # only once complete: skip_if tests this dir
       fc-cache -f ~/.local/share/fonts
     uninstall: rm -rf ~/.local/share/fonts/FantasqueSansMNerdFont && { ! command -v fc-cache >/dev/null || fc-cache -f; }   # fontconfig may be removed first
+  - name: departuremono-nerd-font   # kitty's font (linux/kitty/theme.conf): retro-futuristic pixel; sharp at multiples of 11px
+    when: desktop
+    skip_if: test -d ~/.local/share/fonts/DepartureMonoNerdFont
+    script: |
+      set -eo pipefail
+      tmp=$(mktemp -d) && mkdir -p ~/.local/share/fonts
+      curl -fsSL https://github.com/ryanoasis/nerd-fonts/releases/latest/download/DepartureMono.tar.xz | tar -xJ -C "$tmp"
+      mv "$tmp" ~/.local/share/fonts/DepartureMonoNerdFont  # only once complete: skip_if tests this dir
+      fc-cache -f ~/.local/share/fonts
+    uninstall: rm -rf ~/.local/share/fonts/DepartureMonoNerdFont && { ! command -v fc-cache >/dev/null || fc-cache -f; }
+  - name: terminess-nerd-font   # Terminus, the classic bitmap terminal font, patched ("Terminess Nerd Font")
+    when: desktop
+    skip_if: test -d ~/.local/share/fonts/TerminessNerdFont
+    script: |
+      set -eo pipefail
+      tmp=$(mktemp -d) && mkdir -p ~/.local/share/fonts
+      curl -fsSL https://github.com/ryanoasis/nerd-fonts/releases/latest/download/Terminus.tar.xz | tar -xJ -C "$tmp"
+      mv "$tmp" ~/.local/share/fonts/TerminessNerdFont  # only once complete: skip_if tests this dir
+      fc-cache -f ~/.local/share/fonts
+    uninstall: rm -rf ~/.local/share/fonts/TerminessNerdFont && { ! command -v fc-cache >/dev/null || fc-cache -f; }
   # The Hyprland desktop setup, opt-in: ./install.cmd --hyprland (Ubuntu 26.04+). LinuxBeginnings/Ubuntu-Hyprland's
   # installer (Hyprland from its PPA, waybar, rofi, swaync, hyprlock, ...) with its Hyprland config Hyprland-Dots;
   # linux/hypr/dotfiles.lua and the entries below sit on top of it. Both pinned: bump INSTALLER / DOTS + VERSION to
@@ -202,7 +267,7 @@ linux:
         --dirs "ags btop cava fastfetch hypr Kvantum qt5ct qt6ct rofi swappy swaync Thunar wallust waybar wlogout"
       cd ~ && rm -rf "$dir"
   - name: hyprbars   # Hyprland title bars: drag to move, minimize/maximize/close; settings in linux/hypr/dotfiles.lua
-    when: desktop
+    when: in-hyprland
     interactive: true   # hyprpm runs sudo itself, and can ask for the password again
     # installed = built and enabled (a failed build is listed too, as "enabled: Plugin failed to build").
     # Only from inside a running Hyprland (as hyprfocus and Hyprspace): `hyprpm add` asks the running instance for
@@ -219,7 +284,7 @@ linux:
     # upgrade it would keep the old build: update forces a rebuild when the plugin's g++ isn't today's.
     script: |
       set -e
-      sudo apt-get install -y -qq g++-14 glslang-dev liblua5.4-dev libhyprutils-dev libaquamarine-dev libhyprlang-dev libhyprcursor-dev libhyprgraphics-dev libxcb-errors-dev
+      "$DOT/linux/apt-deps" install g++-14 glslang-dev liblua5.4-dev libhyprutils-dev libaquamarine-dev libhyprlang-dev libhyprcursor-dev libhyprgraphics-dev libxcb-errors-dev
       CXX=g++; [ "$(g++ -dumpversion | cut -d. -f1)" -ge 14 ] || CXX=g++-14
       export CXX CPATH=/usr/include/lua5.4${CPATH:+:$CPATH}
       hyprpm update
@@ -231,11 +296,11 @@ linux:
     update: |   # rebuilds it after a Hyprland update, or with -f after a compiler change
       command -v hyprpm >/dev/null || exit 0
       # hyprpm needs the running Hyprland (its version, and the reload): from another desktop, wait for a run inside it
-      [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || { echo "hyprbars: Hyprland isn't running here; checked on a run inside it"; exit 0; }
+      [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || exit 0
       # its build packages too: an Ubuntu upgrade (or a Hyprland reinstall) can remove them
       missing=$(for p in g++-14 glslang-dev liblua5.4-dev libhyprutils-dev libaquamarine-dev libhyprlang-dev libhyprcursor-dev libhyprgraphics-dev libxcb-errors-dev; do
         dpkg-query -W -f='${db:Status-Abbrev}' "$p" 2>/dev/null | grep -q '^ii' || echo "$p"; done)
-      [ -z "$missing" ] || { echo "hyprbars: installing" $missing; sudo apt-get install -y -qq $missing; }
+      [ -z "$missing" ] || { echo "hyprbars: installing" $missing; "$DOT/linux/apt-deps" install $missing; }
       CXX=g++; [ "$(g++ -dumpversion | cut -d. -f1)" -ge 14 ] || CXX=g++-14
       so=/var/cache/hyprpm/$(id -un)/hyprland-plugins/hyprbars.so force=
       # .comment holds e.g. "GCC: (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0"; --version the same from "("
@@ -247,9 +312,9 @@ linux:
       CXX=$CXX CPATH=/usr/include/lua5.4 hyprpm update $force
     uninstall: >-
       hyprpm disable hyprbars; hyprpm remove https://github.com/hyprwm/hyprland-plugins; hyprpm reload;
-      sudo apt-get remove -y -qq g++-14 glslang-dev liblua5.4-dev libhyprutils-dev libaquamarine-dev libhyprlang-dev libhyprcursor-dev libhyprgraphics-dev libxcb-errors-dev
+      "$DOT/linux/apt-deps" remove g++-14 glslang-dev liblua5.4-dev libhyprutils-dev libaquamarine-dev libhyprlang-dev libhyprcursor-dev libhyprgraphics-dev libxcb-errors-dev
   - name: hyprfocus   # Hyprland: flash on the window that gets keyboard focus; settings in linux/hypr/dotfiles.lua
-    when: desktop
+    when: in-hyprland
     interactive: true   # hyprpm, as for hyprbars
     # the same hyprland-plugins repo as hyprbars (built and updated by its entry above): only enabled here.
     # Skipped where that repo isn't there (no hyprbars: its build failed, or no Hyprland)
@@ -263,7 +328,7 @@ linux:
       [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || hyprpm reload
     uninstall: "! command -v hyprpm >/dev/null || { hyprpm disable hyprfocus; hyprpm reload; }"
   - name: hyprspace   # Hyprland workspace overview on tap-Super (drag windows between workspaces); settings in linux/hypr/dotfiles.lua
-    when: desktop
+    when: in-hyprland
     interactive: true   # hyprpm, as for hyprbars
     # Built like hyprbars (whose entry above installs the build packages and, on update, rebuilds every hyprpm plugin)
     skip_if: >-
@@ -280,12 +345,12 @@ linux:
         { echo "Hyprspace didn't build: 'hyprpm -v update -f' shows why"; exit 1; }
     uninstall: "! command -v hyprpm >/dev/null || { hyprpm disable Hyprspace; hyprpm remove https://github.com/KZDKM/Hyprspace; hyprpm reload; }"
   - name: wayle   # Hyprland panel (bar, notifications, OSD), tried in place of waybar: linux/hypr/panel.sh switches, config in linux/wayle
-    when: desktop
+    when: in-hyprland
     # Not packaged for Ubuntu: built from its latest release tag with cargo (Rust 1.93+: 26.04's cargo) into ~/.local
     skip_if: "[ -x ~/.local/bin/wayle ] || ! command -v Hyprland >/dev/null"
     script: |
       set -e
-      sudo apt-get install -y -qq cargo pkg-config cmake clang build-essential libgtk-4-dev libgtk4-layer-shell-dev libgtksourceview-5-dev libpulse-dev libfftw3-dev libpipewire-0.3-dev libudev-dev
+      "$DOT/linux/apt-deps" install cargo pkg-config cmake clang build-essential libgtk-4-dev libgtk4-layer-shell-dev libgtksourceview-5-dev libpulse-dev libfftw3-dev libpipewire-0.3-dev libudev-dev
       tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
       tag=$(git ls-remote --tags --refs --sort=-v:refname https://github.com/wayle-rs/wayle 'v*' | head -1 | sed 's|.*/||')
       git clone -q --depth 1 --branch "$tag" https://github.com/wayle-rs/wayle "$tmp/wayle"
@@ -297,7 +362,7 @@ linux:
       { ~/.local/bin/wayle panel stop 2>/dev/null; true; } &&
       { cargo uninstall --root ~/.local wayle 2>/dev/null; cargo uninstall --root ~/.local wayle-settings 2>/dev/null; true; } &&
       rm -rf ~/.local/bin/wayle ~/.local/bin/wayle-settings ~/.local/share/wayle &&
-      sudo apt-get remove -y -qq libgtksourceview-5-dev libfftw3-dev libpipewire-0.3-dev libpulse-dev
+      "$DOT/linux/apt-deps" remove libgtksourceview-5-dev libfftw3-dev libpipewire-0.3-dev libpulse-dev
   - name: spotify   # Spotify's official app, from its snap (Spotify's own Linux package; snap keeps it updated)
     when: desktop
     skip_if: "! command -v snap >/dev/null || snap list spotify >/dev/null 2>&1"
@@ -317,7 +382,7 @@ linux:
     skip_if: "[ -x ~/.local/bin/wl-screenrec ]"
     script: |
       set -e
-      sudo apt-get install -y -qq cargo pkg-config clang libdrm-dev libavcodec-dev libavformat-dev libavutil-dev libavfilter-dev libavdevice-dev libswscale-dev
+      "$DOT/linux/apt-deps" install cargo pkg-config clang libdrm-dev libavcodec-dev libavformat-dev libavutil-dev libavfilter-dev libavdevice-dev libswscale-dev
       cargo install --locked --root ~/.local wl-screenrec
     update: "[ ! -x ~/.local/bin/wl-screenrec ] || cargo install --locked --root ~/.local wl-screenrec"   # a no-op when current
     uninstall: "{ cargo uninstall --root ~/.local wl-screenrec || rm -f ~/.local/bin/wl-screenrec; }"
@@ -332,7 +397,7 @@ linux:
       set -e
       COMMIT=3b8408e5a0dab4829f9f63e0a329de63be8ed19e
       ID=io.github.leonardo_panseri.cosmic-ext-applet-sysmon
-      sudo apt-get install -y -qq cargo git pkg-config libwayland-dev libxkbcommon-dev
+      "$DOT/linux/apt-deps" install cargo git pkg-config libwayland-dev libxkbcommon-dev
       tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
       git clone -q https://github.com/leonardo-panseri/cosmic-ext-applet-sysmon "$tmp/src"
       git -C "$tmp/src" checkout -q "$COMMIT"
@@ -353,7 +418,7 @@ linux:
     script: |
       set -e
       COMMIT=83fdd939aead5fed81c5714825180468f5b86691
-      sudo apt-get install -y -qq cargo git pkg-config libssl-dev libwayland-dev libxkbcommon-dev
+      "$DOT/linux/apt-deps" install cargo git pkg-config libssl-dev libwayland-dev libxkbcommon-dev
       tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
       git clone -q https://github.com/Oussamaberchi/caffeine-cosmic "$tmp/src"
       git -C "$tmp/src" checkout -q "$COMMIT"
@@ -365,6 +430,29 @@ linux:
     uninstall: >-
       sudo rm -f /usr/local/bin/cosmic-caffeine /usr/local/share/applications/com.github.cosmic-caffeine.desktop
       /usr/local/share/icons/hicolor/scalable/apps/oussama-berchi-caffeine-cosmic.svg
+  # The input method in the panel as EN / あ (fcitx5, like the Hyprland panel's): this repo's own small applet,
+  # linux/cosmic/input-applet. COSMIC's Input Sources applet shows only the keyboard layout, and fcitx5's tray icon
+  # only shows inside the status area with every other tray icon. Built with cargo into /usr/local, where the panel
+  # finds applets; rebuilt when its source changes (its sha256 is kept in the state dir). Placed by COSMIC_KEYS.
+  - name: cosmic-applet-input
+    when: cosmic
+    skip_if: >-
+      [ -x /usr/local/bin/dotfiles-cosmic-applet-input ] &&
+      [ "$(cat "${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/cosmic-applet-input.build" 2>/dev/null)" =
+      "$(cd "$DOT/linux/cosmic/input-applet" && cat Cargo.toml Cargo.lock src/*.rs *.desktop | sha256sum | cut -c1-64)" ]
+    script: |
+      set -e
+      "$DOT/linux/apt-deps" install cargo pkg-config libwayland-dev libxkbcommon-dev
+      src=$DOT/linux/cosmic/input-applet
+      CARGO_TARGET_DIR=${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles/input-applet cargo build --release --locked --manifest-path "$src/Cargo.toml"
+      sudo install -Dm755 "${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles/input-applet/release/dotfiles-cosmic-applet-input" /usr/local/bin/dotfiles-cosmic-applet-input
+      sudo install -Dm644 "$src/dev.dotfiles.CosmicAppletInput.desktop" /usr/local/share/applications/dev.dotfiles.CosmicAppletInput.desktop
+      pkill -x dotfiles-cosmic-applet-input || true   # the panel starts the new build
+      state=${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles; mkdir -p "$state"
+      (cd "$src" && cat Cargo.toml Cargo.lock src/*.rs *.desktop | sha256sum | cut -c1-64) >| "$state/cosmic-applet-input.build"
+    uninstall: >-
+      sudo rm -f /usr/local/bin/dotfiles-cosmic-applet-input /usr/local/share/applications/dev.dotfiles.CosmicAppletInput.desktop &&
+      rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles/input-applet" "${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/cosmic-applet-input.build"
   # pivot (Sigma-studios/pivot): Alt-Tab with live window previews under COSMIC; a quick tap flips to the previous
   # window, as in GNOME. Bound in linux/cosmic/shortcuts.ron (COSMIC's own switcher while pivot is missing), started at
   # login by linux/cosmic/pivot.desktop. Early software: built with cargo at a pinned commit (bump COMMIT and the one in
@@ -377,7 +465,7 @@ linux:
     script: |
       set -e
       COMMIT=9da347027e97e94b3e5e3082ff0841745bd66cf6
-      sudo apt-get install -y -qq cargo git pkg-config libgbm-dev libxkbcommon-dev
+      "$DOT/linux/apt-deps" install cargo git pkg-config libgbm-dev libxkbcommon-dev
       cargo install --locked --force --root ~/.local --git https://github.com/Sigma-studios/pivot --rev "$COMMIT" pivot
       ~/.local/bin/pivot quit 2>/dev/null || true   # the running daemon: the next Alt+Tab starts the new one
       rm -f "${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/pivot.build"   # an older recipe's build stamp
@@ -406,6 +494,7 @@ linux:
       657d4da55c406ee33e5da526ead5e9c7cd76442d38f212d6c9e637c2c25fcc1c skwd-wall-v2_1.0.0.beta.29-1_amd64.deb
       EOF
       sudo apt-get install -y -qq --no-install-recommends ./*.deb
+      "$DOT/linux/apt-deps" own skwd-wall-v2 skwd-deck skwd-paper   # so its uninstall can remove them safely
       # not in every session (default.target, kept off through its upgrades): COSMIC's only (post)
       sudo systemctl --global disable skwd-walld.service
     post: |
@@ -415,12 +504,12 @@ linux:
       if [ "$XDG_CURRENT_DESKTOP" = COSMIC ]; then systemctl --user start skwd-walld.service; fi
     uninstall: |
       systemctl --user disable --now skwd-walld.service 2>/dev/null || true
-      sudo apt-get remove -y -qq skwd-wall-v2 skwd-deck skwd-paper
+      "$DOT/linux/apt-deps" remove skwd-wall-v2 skwd-deck skwd-paper
   - {name: slurp, when: desktop}   # picks the area for Ctrl-Alt-Shift-A screen recording (linux/desktop/record.sh)
-  - {name: wf-recorder, when: desktop, skip_if: &no-hyprland '! command -v Hyprland >/dev/null && [ ! -e "${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/desktop-hyprland" ]'}   # Ctrl-Alt-Shift-R screen recording (linux/desktop/record.sh)
+  - {name: wf-recorder, when: in-hyprland, skip_if: &no-hyprland '! command -v Hyprland >/dev/null && [ ! -e "${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/desktop-hyprland" ]'}   # Ctrl-Alt-Shift-R screen recording (linux/desktop/record.sh)
   # monitor layouts that switch by themselves on plug/unplug (docking). Profiles name this machine's screens, so they
   # live in the untracked ~/.config/kanshi/config; linux/hypr/dotfiles.lua starts kanshi only when that file exists
-  - {name: kanshi, when: desktop, skip_if: *no-hyprland}
+  - {name: kanshi, when: in-hyprland, skip_if: *no-hyprland}
   # Japanese input under Hyprland and COSMIC (installed or chosen: --hyprland / --cosmic): fcitx5 + Mozc, Ctrl-Space (started by linux/hypr/dotfiles.lua, and under
   # COSMIC by linux/cosmic/fcitx5.desktop). GNOME keeps ibus (ibus-mozc below): with ibus installed, im-config's
   # automatic choice stays ibus. Only where Hyprland or COSMIC is.
@@ -433,7 +522,7 @@ linux:
   # Japanese input under Ubuntu's GNOME: ibus + Mozc, Ctrl-Space too (input sources and key set by linux/install.sh)
   - {name: ibus-mozc, when: desktop, skip_if: '! command -v gnome-shell >/dev/null'}
   - name: hyprshell   # Hyprland Alt-Tab switcher + launcher; config in linux/hyprshell, started by linux/hypr/dotfiles.lua
-    when: desktop
+    when: in-hyprland
     # Needs GTK 4.18+, libadwaita 1.8+ and gtk4-layer-shell 1.1.1+ (Ubuntu 26.04 on), and Hyprland 0.57+ (it binds its
     # keys through the Lua config; Ubuntu 26.04's own Hyprland is 0.53, the PPA's is newer): skipped before, and the
     # rofi Alt-Tab/launcher stay. Built with cargo (Rust 1.92+; 26.04's cargo is 1.93) into ~/.local/bin.
@@ -443,12 +532,12 @@ linux:
       dpkg --compare-versions "$(apt-cache policy libgtk-4-1 | awk '/Candidate:/ {print $2}')" lt 4.18   # the GTK apt offers
     script: |
       set -e
-      sudo apt-get install -y -qq cargo pkg-config libgtk-4-dev libadwaita-1-dev libgtk4-layer-shell-dev
+      "$DOT/linux/apt-deps" install cargo pkg-config libgtk-4-dev libadwaita-1-dev libgtk4-layer-shell-dev
       cargo install --locked --root ~/.local hyprshell
     update: "[ ! -x ~/.local/bin/hyprshell ] || cargo install --locked --root ~/.local hyprshell"   # a no-op when current
     uninstall: >-
       { cargo uninstall --root ~/.local hyprshell || rm -f ~/.local/bin/hyprshell; } &&
-      sudo apt-get remove -y -qq cargo libgtk-4-dev libadwaita-1-dev libgtk4-layer-shell-dev
+      "$DOT/linux/apt-deps" remove cargo libgtk-4-dev libadwaita-1-dev libgtk4-layer-shell-dev
 
   # dev
   - gh
@@ -456,10 +545,32 @@ linux:
   - shellcheck
   - jq
   - yq
-  - cloc
   - name: lazygit
     github: jesseduffield/lazygit
     asset: lazygit_{version}_linux_{xarch}.tar.gz
+  - name: d2     # diagrams from text: `d2 -w in.d2 out.svg` (live preview)
+    github: terrastruct/d2
+    asset: d2-{tag}-linux-{arch}.tar.gz
+    file: d2-{tag}/bin/d2
+  - name: sops   # encrypted secrets in YAML/JSON/env files; with age keys (~/.config/sops/age/keys.txt, per machine)
+    github: getsops/sops
+    asset: sops-{tag}.linux.{arch}
+  - age          # file encryption, sops' key type
+  - name: step   # smallstep CLI: certificates, CSRs, inspect TLS (`step certificate inspect https://host`), JWTs
+    github: smallstep/cli
+    asset: step_linux_{version}_{arch}.tar.gz
+    file: step_{version}/bin/step
+  - name: grpcurl   # curl for gRPC
+    github: fullstorydev/grpcurl
+    asset: grpcurl_{version}_linux_{xarch}.tar.gz
+  - name: websocat  # netcat for WebSockets
+    github: vi/websocat
+    asset: websocat.{m}-unknown-linux-musl
+  - name: usql   # one SQL CLI for Postgres, MySQL, SQLite, MSSQL, Oracle... (static build: every driver)
+    github: xo/usql
+    asset: usql_static-{version}-linux-{arch}.tar.bz2
+    file: usql_static
+  - kcat         # Kafka producer/consumer/metadata
   - name: code
     when: desktop
     repo:
@@ -476,20 +587,69 @@ linux:
       curl -fsSLo ~/.local/bin/kubectl "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release/stable.txt)/bin/linux/$(dpkg --print-architecture)/kubectl"
       chmod +x ~/.local/bin/kubectl
     uninstall: rm -f ~/.local/bin/kubectl
+  # krew: kubectl plugins, in ~/.krew (its bin is on PATH in zshenv). Each tool is `kubectl <name>`
+  - name: krew
+    skip_if: test -x ~/.krew/bin/kubectl-krew
+    script: |
+      set -e
+      tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+      a=$(dpkg --print-architecture)
+      curl -fsSL "https://github.com/kubernetes-sigs/krew/releases/latest/download/krew-linux_$a.tar.gz" | tar -xz -C "$tmp"
+      "$tmp/krew-linux_$a" install krew >/dev/null
+    update: ~/.krew/bin/kubectl-krew update >/dev/null && ~/.krew/bin/kubectl-krew upgrade >/dev/null   # index, then krew and its plugins
+    uninstall: rm -rf ~/.krew
+    tools:
+      - neat          # kubectl neat: manifests without status and managed fields
+      - tree          # kubectl tree: what owns what
+      - view-secret   # kubectl view-secret: decoded secrets
+      - node-shell    # kubectl node-shell: root shell on a node
+      - df-pv         # kubectl df-pv: PV usage
+      - who-can       # kubectl who-can: RBAC, who may do a verb on a resource
+  - name: kubeshark   # API traffic viewer for a cluster (deploys its agents into it)
+    github: kubeshark/kubeshark
+    asset: kubeshark_linux_{arch}
   - name: helm
+    skip_if: test -x ~/.local/bin/helm   # ours, even where an older helm exists (it can't load helm-diff's current plugin.yaml)
     script: curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | HELM_INSTALL_DIR=~/.local/bin USE_SUDO=false bash >/dev/null
     uninstall: rm -f ~/.local/bin/helm
+  - name: helm-diff   # helm diff upgrade: what an upgrade would change (helmfile uses it too)
+    skip_if: ~/.local/bin/helm plugin list 2>/dev/null | grep -q '^diff'
+    script: mkdir -p "$(~/.local/bin/helm env HELM_PLUGINS)" && ~/.local/bin/helm plugin install https://github.com/databus23/helm-diff >/dev/null
+    update: ~/.local/bin/helm plugin update diff >/dev/null
+    uninstall: ~/.local/bin/helm plugin uninstall diff >/dev/null
+  - name: helmfile
+    github: helmfile/helmfile
+    asset: helmfile_{version}_linux_{arch}.tar.gz
   - name: k9s
     github: derailed/k9s
     asset: k9s_Linux_{arch}.tar.gz
   - name: stern
     github: stern/stern
     asset: stern_{version}_linux_{arch}.tar.gz
-  - name: terraform
-    repo:
-      name: hashicorp
-      key: https://apt.releases.hashicorp.com/gpg
-      url: https://apt.releases.hashicorp.com
+  # tenv: terraform, OpenTofu and Terragrunt versions per project (.terraform-version, required_version), through
+  # its proxies `terraform`, `tofu`, `terragrunt`; each version downloads on first use (latest when unpinned)
+  - name: tenv
+    github: tofuutils/tenv
+    asset: tenv_{tag}_Linux_{xarch}.tar.gz
+    extra: [terraform, tofu, terragrunt]
+    skip_if: test -x ~/.local/bin/tenv
+  - name: tflint
+    github: terraform-linters/tflint
+    asset: tflint_linux_{arch}.zip
+  - name: terraform-docs
+    github: terraform-docs/terraform-docs
+    asset: terraform-docs-{tag}-linux-{arch}.tar.gz
+  - name: infracost   # cost estimate of a terraform plan (`infracost auth login` once, per machine)
+    github: infracost/infracost
+    asset: infracost-linux-{arch}.tar.gz
+    file: infracost-linux-{arch}
+  - name: steampipe   # SQL over cloud APIs: `steampipe plugin install aws kubernetes net`, then `steampipe query`
+    github: turbot/steampipe
+    asset: steampipe_linux_{arch}.tar.gz
+  - name: granted     # AWS profile switching: `assume <profile>` (alias in zsh_aliases), `granted console`
+    github: common-fate/granted
+    asset: granted_{version}_linux_{xarch}.tar.gz
+    extra: [assume, assumego]
   - name: aws
     script: |
       tmp=$(mktemp -d)
@@ -506,24 +666,58 @@ linux:
     skip_if: *other-docker
   - name: docker-buildx
     skip_if: *other-docker
+  # containerlab: network labs (SR Linux, cEOS, FRR, Linux...) as containers, wired from a topology file. Its .deb
+  # from the release (its apt repo is unsigned, trusted=yes). Router images are pulled per lab; some (cEOS) need a
+  # vendor login. The package makes the clab_admins group: you're added, so it runs without sudo (next login)
+  - name: containerlab
+    skip_if: dpkg -s containerlab >/dev/null 2>&1
+    script: &containerlab |   # also its update: a no-op when it's the latest release
+      set -e
+      tag=$(curl -fsSLo /dev/null -w '%{url_effective}' https://github.com/srl-labs/containerlab/releases/latest | sed 's|.*/||')
+      [ "$(dpkg-query -W -f='${Version}' containerlab 2>/dev/null)" = "${tag#v}" ] && exit 0
+      tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT; chmod 755 "$tmp"   # apt's _apt user reads the .deb
+      curl -fsSLo "$tmp/clab.deb" "https://github.com/srl-labs/containerlab/releases/download/$tag/containerlab_${tag#v}_linux_$(dpkg --print-architecture).deb"
+      sudo apt-get install -y -qq "$tmp/clab.deb"
+      "$DOT/linux/apt-deps" own containerlab
+    update: *containerlab
+    post: "! getent group clab_admins >/dev/null || id -nG \"$USER\" | grep -qw clab_admins || sudo usermod -aG clab_admins \"$USER\""
+    uninstall: |   # out of clab_admins too (the group goes with the package)
+      ! id -nG "$USER" | grep -qw clab_admins || sudo gpasswd -d "$USER" clab_admins >/dev/null
+      "$DOT/linux/apt-deps" remove containerlab
 
   # network
-  - httpie
   - name: xh
     github: ducaale/xh
     asset: xh-{tag}-{m}-unknown-linux-musl.tar.gz
     file: xh-{tag}-{m}-unknown-linux-musl/xh
     post: '[ -e ~/.local/bin/ht ] || ln -s xh ~/.local/bin/ht'
     uninstall: rm -f ~/.local/bin/xh ~/.local/bin/ht
-  - libcap2-bin  # setcap for bandwhich
+  - libcap2-bin  # setcap for trip
   - gping        # ping, graphed
+  - name: trip   # trippy: mtr/traceroute with AS names and a map; config in linux/trippy, `trip` function in zshrc
+    github: fujiapple852/trippy
+    asset: trippy-{version}-{m}-unknown-linux-musl.tar.gz
+    file: trippy-{version}-{m}-unknown-linux-musl/trip
+    skip_if: test -x ~/.local/bin/trip   # ours, even where another trip (e.g. cargo's) is on PATH
+    # raw sockets without sudo; the cap is lost when the binary is replaced, so check each run
+    post: getcap ~/.local/bin/trip | grep -q cap_net_raw || sudo setcap cap_net_raw+ep ~/.local/bin/trip
+  - geoipupdate  # MaxMind's GeoLite2 City for trip's map; the installer asks for a free license key once
   - name: doggo  # dig
     github: mr-karan/doggo
     asset: doggo-linux-{m}.tar.gz
-  - name: bandwhich # iftop, per process
-    github: imsnif/bandwhich
-    asset: bandwhich-{tag}-{m}-unknown-linux-musl.tar.gz
-    post: getcap ~/.local/bin/bandwhich | grep -q cap_net_admin || sudo setcap cap_sys_ptrace,cap_dac_read_search,cap_net_raw,cap_net_admin+ep ~/.local/bin/bandwhich
+  - name: rustnet  # network monitor TUI, connections per process. Its package sets the capabilities it needs
+    repo:
+      name: rustnet
+      key: https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x02E6E9053D5D53D9A85E142C2985E57C5DF10033
+      url: https://ppa.launchpadcontent.net/domcyrus/rustnet/ubuntu
+  - name: sshs     # pick a host from ~/.ssh/config; SynthWave colours via the alias in linux/zsh/zsh_aliases
+    github: quantumsheep/sshs
+    asset: sshs-linux-{arch}
+    skip_if: test -x ~/.local/bin/sshs   # ours, even where a .deb's /usr/bin/sshs exists
+  - name: termscp  # TUI file transfer: SFTP, SCP, FTP, S3, SMB, WebDAV; theme in linux/termscp
+    github: veeso/termscp
+    asset: termscp-{tag}-{m}-unknown-linux-musl.tar.gz
+    skip_if: test -x ~/.local/bin/termscp
   - nmap
   - tcpdump
   - tshark
@@ -532,10 +726,56 @@ linux:
   - iperf3
   - bind9-dnsutils
   - ipcalc
-  - tcptraceroute
   - whois
   - bgpq4
   - socat
+  - asn          # AS, prefixes, peers, geolocation, reputation for an IP/ASN/domain; trace with AS names
+  - name: globalping   # ping/traceroute/mtr/dig/http from probes worldwide (`globalping auth login` for higher limits)
+    github: jsdelivr/globalping-cli
+    asset: globalping_Linux_{xarch}.tar.gz
+  - name: monocle      # BGP: MRT parsing, search updates, RPKI, AS-to-name, as2rel
+    github: bgpkit/monocle
+    asset: monocle-{m}-unknown-linux-gnu.tar.gz
+  - name: gnmic        # gNMI client: get/set/subscribe on routers, switches
+    github: openconfig/gnmic
+    asset: gnmic_{version}_Linux_{m}.tar.gz
+  - lldpd        # LLDP/CDP neighbours: `lldpcli show neighbors` (runs as a service)
+  # scanning
+  - name: rustscan     # fast port discovery, then nmap on what's open. Its release is a tar.gz inside a zip
+    skip_if: test -x ~/.local/bin/rustscan
+    script: &rustscan |   # also its update: a no-op when it's the latest release
+      set -e
+      tag=$(curl -fsSLo /dev/null -w '%{url_effective}' https://github.com/bee-san/RustScan/releases/latest | sed 's|.*/||')
+      [ "$(~/.local/bin/rustscan --version 2>/dev/null)" = "rustscan ${tag#v}" ] && exit 0
+      tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+      curl -fsSLo "$tmp/r.zip" "https://github.com/bee-san/RustScan/releases/download/$tag/$(uname -m)-linux-rustscan.tar.gz.zip"
+      unzip -q "$tmp/r.zip" -d "$tmp" && tar -xzf "$tmp/$(uname -m)-linux-rustscan.tar.gz" -C "$tmp"
+      install -m 755 "$tmp/rustscan" ~/.local/bin/rustscan
+    update: *rustscan
+    uninstall: rm -f ~/.local/bin/rustscan
+  - name: nmap-formatter   # nmap XML to HTML, CSV, Markdown, JSON, D2, Graphviz
+    github: vdjagilev/nmap-formatter
+    asset: nmap-formatter-linux-{arch}.tar.gz
+  - arp-scan     # who's on this LAN (sudo arp-scan -l)
+  - fping        # ping many hosts / a subnet at once (fping -g 10.0.0.0/24)
+  - hping3       # crafted TCP/UDP/ICMP probes
+  - scamper      # bulk traceroute/ping measurement
+  - grepcidr     # grep lines by IP in CIDRs
+  - name: mapcidr      # CIDR maths: split, aggregate, count, expand
+    github: projectdiscovery/mapcidr
+    asset: mapcidr_{version}_linux_{arch}.zip
+  # capture and kernel
+  - ngrep        # grep for packets
+  - tcpflow      # TCP streams to files
+  - conntrack    # conntrack-tools: netfilter connection table
+  - ethtool
+  - pwru         # which kernel function drops a packet (eBPF)
+  - bpftrace     # eBPF one-liners
+  - bpfcc-tools  # BCC's tools: tcpconnect-bpfcc, tcplife-bpfcc, tcpretrans-bpfcc, execsnoop-bpfcc...
+  # HTTP
+  - name: oha    # HTTP load test with a live TUI
+    github: hatoo/oha
+    asset: oha-linux-{arch}
 
   # python: pyenv build deps, then pyenv with 3.11, 3.12 (global unless you picked one) and 3.14
   - python3
@@ -572,6 +812,22 @@ linux:
     tools:
       - ptpython   # nicer Python REPLs (aliases ptpy, bpy in linux/zsh/zsh_aliases)
       - bpython
+      - httpstat   # curl with a timing breakdown: DNS, connect, TLS, server, transfer
+  # SuzieQ: polls network devices over SSH into a queryable store (suzieq-cli, suzieq-gui). Not a `tools:` entry:
+  # it needs Python 3.10-3.11 and uvloop, which it doesn't declare. Config: linux/suzieq (configure_suzieq in
+  # linux/install.sh); sq-poller function in zshrc
+  - name: suzieq
+    skip_if: ~/.local/bin/uv tool list | grep -q '^suzieq '
+    script: ~/.local/bin/uv tool install -q --python '>=3.10,<3.12' suzieq --with uvloop
+    update: ~/.local/bin/uv tool upgrade -q suzieq
+    uninstall: ~/.local/bin/uv tool uninstall suzieq
+  # TTP (template-based parsing of CLI output) with ntc-templates (TextFSM templates for show commands) in its env.
+  # ntc-templates has no command: the `ntc` function in zshrc parses with it
+  - name: ttp
+    skip_if: ~/.local/bin/uv tool list | grep -q '^ttp '
+    script: ~/.local/bin/uv tool install -q ttp --with ntc-templates
+    update: ~/.local/bin/uv tool upgrade -q ttp
+    uninstall: ~/.local/bin/uv tool uninstall ttp
 
   # ruby: rbenv + ruby-build with 3.2 (EOL 2026-03), 3.4 (global unless you picked one) and 4.0
   - autoconf
@@ -622,6 +878,40 @@ linux:
       git -C ~/.nvm -c advice.detachedHead=false checkout -q "$(git -C ~/.nvm describe --abbrev=0 --tags --match 'v[0-9]*' "$(git -C ~/.nvm rev-list --tags --max-count=1)")"
     uninstall: rm -rf ~/.nvm
 
+  # notes: Joplin. Markdown notes and to-dos, synced through Joplin Cloud, OneDrive, Dropbox, Nextcloud/WebDAV or S3
+  # (end-to-end encryption optional). Set the same sync target in each app: `joplin config sync.target` in the CLI.
+  # The terminal app (`joplin`) is an npm package: it gets its own Node LTS in ~/.local/share/joplin-cli (Ubuntu
+  # 24.04's Node 18 is too old for it, and nvm's versions come and go); Node needs libatomic1
+  - libatomic1
+  - name: joplin
+    skip_if: test -x ~/.local/share/joplin-cli/bin/joplin
+    script: &joplin-cli |   # also its update: Node and Joplin are only fetched when newer
+      set -e
+      d=~/.local/share/joplin-cli
+      v=$(curl -fsSL https://nodejs.org/dist/index.json | python3 -c 'import json, sys; print(next(r["version"] for r in json.load(sys.stdin) if r["lts"]))')
+      a=$(dpkg --print-architecture | sed 's/amd64/x64/')
+      if [ "$("$d/node/bin/node" --version 2>/dev/null)" != "$v" ]; then
+        tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+        curl -fsSL "https://nodejs.org/dist/$v/node-$v-linux-$a.tar.xz" | tar -xJ -C "$tmp"
+        rm -rf "$d/node" && mkdir -p "$d" && mv "$tmp/node-$v-linux-$a" "$d/node"
+      fi
+      export PATH=$d/node/bin:$PATH
+      have=$(node -p 'require(process.argv[1]).version' "$d/lib/node_modules/joplin/package.json" 2>/dev/null || true)
+      [ "$have" = "$(npm view joplin version)" ] || npm install -g -s --prefix "$d" joplin@latest >/dev/null
+      printf '#!/bin/sh\nPATH=%s/node/bin:$PATH exec %s/bin/joplin "$@"\n' "$d" "$d" >| ~/.local/bin/joplin
+      chmod +x ~/.local/bin/joplin
+    update: *joplin-cli
+    uninstall: rm -rf ~/.local/share/joplin-cli ~/.local/bin/joplin   # notes stay in ~/.config/joplin
+  - {name: libfuse2t64, when: desktop}   # AppImages (Joplin's desktop app) need FUSE 2
+  - name: joplin-desktop   # Joplin's own installer: AppImage in ~/.joplin, menu entry, icon; re-run, it updates
+    when: desktop
+    skip_if: test -x ~/.joplin/Joplin.AppImage
+    script: &joplin-desktop curl -fsSL https://raw.githubusercontent.com/laurent22/joplin/dev/Joplin_install_and_update.sh | bash -s -- --silent
+    update: *joplin-desktop
+    uninstall: >-   # notes stay in ~/.config/joplin-desktop
+      rm -rf ~/.joplin ~/.local/share/applications/appimagekit-joplin.desktop
+      ~/.local/share/icons/hicolor/512x512/apps/joplin.png
+
   # AI CLIs (desktop apps are in the windows list)
   - name: claude
     script: curl -fsSL https://claude.ai/install.sh | bash >/dev/null
@@ -648,5 +938,6 @@ windows:
   - voidtools.Everything
   - WiresharkFoundation.Wireshark
   - Insecure.Nmap
+  - Joplin.Joplin   # notes, synced with the Linux apps (packages above)
   - Anthropic.Claude
   - Anomaly.OpenCode.Desktop

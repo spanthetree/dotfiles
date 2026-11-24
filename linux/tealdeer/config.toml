@@ -1,0 +1,28 @@
+# tealdeer (tldr): linked to ~/.config/tealdeer/config.toml. SynthWave '84: the palette of linux/kitty/theme.conf.
+# The pages are fetched by the installer (`tldr --update` in the tealdeer entry of packages.yaml) and kept current
+# here: tldr refreshes them itself when they're a week old.
+
+[updates]
+auto_update = true
+auto_update_interval_hours = 168
+
+[display]
+compact = false
+use_pager = false
+
+[style.description]
+foreground = { rgb = { r = 169, g = 155, b = 189 } }   # dim lavender
+
+[style.command_name]
+foreground = { rgb = { r = 255, g = 126, b = 219 } }   # pink
+bold = true
+
+[style.example_text]
+foreground = { rgb = { r = 114, g = 241, b = 184 } }   # green
+
+[style.example_code]
+foreground = { rgb = { r = 54, g = 249, b = 246 } }    # cyan
+
+[style.example_variable]
+foreground = { rgb = { r = 254, g = 222, b = 93 } }    # yellow
+underline = true

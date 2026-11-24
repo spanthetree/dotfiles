@@ -116,9 +116,11 @@ def load(section):
     return [{key: i} if isinstance(i, str) else i for i in doc().get(section) or []]
 
 
-def confirm(what, names):
+def confirm(what, names, detail=''):
     status('')
     print(f'\n{what} no longer in packages.yaml (or for a desktop no longer chosen): {", ".join(sorted(names))}')
+    if detail:
+        print(detail)
     if YES:
         return True
     try:
@@ -130,6 +132,72 @@ def confirm(what, names):
     except OSError:
         warn('no terminal to ask; not uninstalling (re-run interactively, or pass --yes)')
         return False
+
+
+# ---- apt removal safety. An apt package this installer recorded can still be one the system needs (e.g. a library
+# listed for a tool, that the desktop also depends on). `apt-get remove` takes everything that depends on what it
+# removes with it: dropping three libxcb libraries once removed the whole desktop. So: a package is only removed when
+# apt would remove nothing else with it; one still needed is handed back to apt (marked automatic) and stays. The
+# final removal is simulated again and refused if it would take more than planned, or anything essential.
+NEVER_REMOVE = ('ubuntu-desktop', 'ubuntu-desktop-minimal', 'ubuntu-minimal', 'ubuntu-standard', 'gdm3', 'sddm',
+                'cosmic-session', 'cosmic-comp', 'cosmic-greeter', 'gnome-shell', 'gnome-session', 'xwayland',
+                'xserver-xorg-core', 'libgtk-3-0t64', 'libgtk-4-1', 'systemd', 'sudo', 'apt', 'dpkg', 'libc6')
+
+
+def apt_sim(args):  # the packages `apt-get <args> -s` would remove (None: apt refused)
+    r = subprocess.run(['apt-get', '-s', '-qq'] + args, capture_output=True, text=True,
+                       env=dict(os.environ, LC_ALL='C'))
+    if r.returncode != 0:
+        return None
+    return {l.split()[1] for l in r.stdout.splitlines() if l.startswith('Remv ')}
+
+
+def apt_manual():  # packages marked as installed by hand (not as some other package's dependency)
+    return set(subprocess.run(['apt-mark', 'showmanual'], capture_output=True, text=True).stdout.split())
+
+
+def apt_critical(names):  # the ones that must never go: essential, required/important priority, or the desktop
+    bad = {n for n in names if n.split(':')[0] in NEVER_REMOVE}
+    if names:
+        out = subprocess.run(['dpkg-query', '-W', '-f', '${Package} ${Essential} ${Priority}\n'] + sorted(names),
+                             capture_output=True, text=True).stdout
+        for l in out.splitlines():
+            f = l.split()
+            if len(f) >= 3 and (f[1] == 'yes' or f[2] in ('required', 'important')):
+                bad.add(f[0])
+    return bad
+
+
+def apt_plan(names):
+    """Split apt packages to uninstall into (removable, kept): removable when apt would remove nothing but packages
+    from this list along with it; kept ones are still needed by something else."""
+    names = set(names)
+    removable = set()
+    for n in sorted(names):
+        sim = apt_sim(['remove', n])
+        if sim is not None and {s.split(':')[0] for s in sim} <= names and not apt_critical(sim):
+            removable.add(n)
+    return removable, names - removable
+
+
+def apt_remove_safely(names, autoremove):
+    """Remove exactly `names` (already planned), refusing if apt would take anything more. Then, with autoremove,
+    only the dependencies this removal itself left unneeded (never other leftovers). True if it worked."""
+    before = apt_sim(['autoremove']) or set()
+    sim = apt_sim(['remove'] + sorted(names))
+    if sim is None or {s.split(':')[0] for s in sim} - set(names) or apt_critical(sim):
+        warn('apt would remove more than planned (' + ', '.join(sorted(sim or [])) + '); nothing removed')
+        return False
+    if not run('apt remove ' + ' '.join(sorted(names)), SUDO + ['apt-get', 'remove', '-y', '-qq'] + sorted(names)):
+        return False
+    if autoremove:
+        freed = (apt_sim(['autoremove']) or set()) - before
+        if freed and not apt_critical(freed):
+            pkgs = sorted(f.split(':')[0] for f in freed)
+            sim = apt_sim(['remove'] + pkgs)
+            if sim is not None and {s.split(':')[0] for s in sim} <= set(pkgs) and not apt_critical(sim):
+                run(f'apt: {len(pkgs)} dependencies they left', SUDO + ['apt-get', 'remove', '-y', '-qq'] + pkgs)
+    return True
 
 
 def is_wsl():
@@ -168,7 +236,13 @@ def wanted(p):
         return desktop()
     if when in OPT_IN:
         return desktop() and chosen(when)
+    if when == 'in-hyprland':  # the Hyprland layer: skipped (kept, not uninstalled) in other desktops
+        return desktop() and (in_hyprland() or chosen('hyprland'))
     return True
+
+
+def in_hyprland():  # a run from inside a Hyprland session (install.sh drops a dead instance's signature first)
+    return 'Hyprland' in os.environ.get('XDG_CURRENT_DESKTOP', '') or bool(os.environ.get('HYPRLAND_INSTANCE_SIGNATURE'))
 
 
 def dropped(p):  # an opt-in desktop's entry while that desktop isn't chosen: as if not in packages.yaml
@@ -189,7 +263,10 @@ def skip(p):
 # `tools:` under a language entry: how that language's own installer checks, installs and removes a tool.
 # {n}: tool name (go: module path), {b}: its command (go: last path part), {v}: version ('' if none)
 GO, UV, GEM, REHASH = '/usr/local/go/bin/go', '~/.local/bin/uv', '~/.rbenv/shims/gem', '~/.rbenv/bin/rbenv rehash'
+KREW = '~/.krew/bin/kubectl-krew'
 TOOLKITS = {
+    'krew': dict(check=KREW + ' list 2>/dev/null | grep -qx {n}', install=KREW + ' install {n}',
+                 uninstall=KREW + ' uninstall {n}'),  # kubectl plugins, in ~/.krew (piped, `krew list` prints names)
     'go': dict(check='test -x ~/go/bin/{b}', install=GO + ' install {n}@{v}', uninstall='rm -f ~/go/bin/{b}',
                default='latest'),
     'pyenv': dict(check=UV + " tool list | grep -q '^{n} '", install=UV + ' tool install {qs}',
@@ -219,7 +296,27 @@ def dpkg_installed():
     return {l.split()[0] for l in out.splitlines() if l.endswith(' installed')}
 
 
+def other_source(r):
+    """An apt source file, not ours, that already has r's URL (e.g. from add-apt-repository), or None."""
+    ours = f'/etc/apt/sources.list.d/{r["name"]}.list'
+    url = r['url'].rstrip('/')
+    for f in ['/etc/apt/sources.list'] + sorted(glob.glob('/etc/apt/sources.list.d/*.list') +
+                                                glob.glob('/etc/apt/sources.list.d/*.sources')):
+        try:
+            if f != ours and any(url in l and not l.lstrip().startswith('#') for l in open(f)):
+                return f
+        except OSError:
+            pass
+    return None
+
+
 def add_repo(r, arch, codename):
+    # apt refuses to read any source when one URL has two different keys (Signed-By): use the one already there
+    other = other_source(r)
+    if other:
+        drop_repo(r['name'])  # ours from an earlier run, if any
+        log(f'apt repo {r["name"]}: {other} already has {r["url"]}; using that one')
+        return
     keyring = f'/usr/share/keyrings/{r["name"]}-archive-keyring.gpg'
     key = urllib.request.urlopen(r['key']).read()
     subprocess.run(SUDO + ['gpg', '--dearmor', '--yes', '-o', keyring], input=key, check=True)
@@ -241,17 +338,32 @@ def github_install(p, arch, tag):
     url = f'https://github.com/{p["github"]}/releases/download/{tag}/{fill(p["asset"], tag, arch)}'
     member = fill(p.get('file', p['name']), tag, arch)
     blob = urllib.request.urlopen(url).read()
-    # one named file only from an archive: no path traversal
+    # named files only from an archive, each written to BIN under its own name: no path traversal
     if not p['asset'].endswith(('.tar.gz', '.tgz', '.tar.xz', '.tar.bz2', '.zip')):
-        data = blob  # the asset is the binary itself
-    elif zipfile.is_zipfile(io.BytesIO(blob)):
-        data = zipfile.ZipFile(io.BytesIO(blob)).read(member)
+        files = {p['name']: blob}  # the asset is the binary itself
     else:
-        data = tarfile.open(fileobj=io.BytesIO(blob)).extractfile(member).read()
-    dest = os.path.join(BIN, p['name'])
-    with open(dest, 'wb') as f:
-        f.write(data)
-    os.chmod(dest, 0o755)
+        members = {p['name']: member} | {extra_name(e): fill(e, tag, arch) for e in p.get('extra') or []}
+        if zipfile.is_zipfile(io.BytesIO(blob)):
+            z = zipfile.ZipFile(io.BytesIO(blob))
+            files = {n: z.read(m) for n, m in members.items()}
+        else:
+            t = tarfile.open(fileobj=io.BytesIO(blob))
+            files = {n: t.extractfile(m).read() for n, m in members.items()}
+    for n, data in files.items():
+        dest = os.path.join(BIN, n)
+        with open(dest, 'wb') as f:
+            f.write(data)
+        os.chmod(dest, 0o755)
+
+
+def extra_name(path):  # an `extra:` file's name in BIN: its last path part
+    return path.rstrip('/').rsplit('/', 1)[-1]
+
+
+def drop_repo(name):
+    files = [f'/usr/share/keyrings/{name}-archive-keyring.gpg', f'/etc/apt/sources.list.d/{name}.list']
+    if any(os.path.exists(f) for f in files):
+        run(f'apt repo {name} removed', SUDO + ['rm', '-f'] + files)
 
 
 def linux():
@@ -290,6 +402,10 @@ def linux():
         status(f'checking apt packages {i}/{len(pkgs)}  {p["name"]}')
         if kind(p) != 'apt' or skip(p):
             continue
+        # already installed: leave it out. `apt-get install` on it would mark it as installed by hand, and a library
+        # present only as another package's dependency would then look like ours (apt upgrade keeps it current)
+        if p['name'] in before:
+            continue
         if quiet(['apt-cache', 'show', p['name']]):
             apt.append(p['name'])
         else:
@@ -300,6 +416,12 @@ def linux():
         if not run('apt upgrade', SUDO + ['env', 'DEBIAN_FRONTEND=noninteractive', 'apt-get', 'upgrade', '-y', '-qq']):
             failed.append('apt upgrade')
     after = dpkg_installed()
+    # apt packages count as this installer's only when installed by hand (apt-mark showmanual): one present only as a
+    # dependency of something else (a library the desktop needs) is never ours, so never ours to remove
+    manual = apt_manual()
+    for n in [n for n, r in record.items() if r['kind'] == 'apt' and n in after and n not in manual]:
+        warn(f'{n}: installed as a dependency of other packages; no longer tracked as installed by dotfiles')
+        del record[n]
 
     for i, p in enumerate(pkgs, 1):
         name, k = p['name'], kind(p)
@@ -308,7 +430,7 @@ def linux():
         status(f'checking {i}/{len(pkgs)}  {name}')
         try:
             if k == 'apt':
-                mine = mine or (name in after and (ADOPT or name not in before))
+                mine = mine or (name in after and name in manual and (ADOPT or name not in before))
             elif skip(p):
                 mine = mine or ADOPT
                 if 'update' in p and not run(f'{name} update', p['update'], p.get('interactive', False)):
@@ -342,6 +464,10 @@ def linux():
                 record[name]['interactive'] = True
             if tag:
                 record[name]['tag'] = tag
+            if k == 'github' and p.get('extra'):
+                record[name]['extra'] = [extra_name(e) for e in p['extra']]
+            if 'repo' in p:  # its apt source goes when it does
+                record[name]['repo'] = p['repo']['name']
         for tid, check, install, uninstall in tools(p):
             if quiet(['bash', '-c', check]):
                 mine = tid in record or ADOPT
@@ -365,14 +491,24 @@ def linux():
         warn(f'{n}: core package, not uninstalling')
         del record[n]
     gone = [n for n in gone if n not in PROTECTED]
+    # apt packages: only those apt can remove without taking anything else (apt_plan); the rest stay as dependencies
+    installed = dpkg_installed()
+    apt_all = [n for n in gone if record[n]['kind'] == 'apt' and not record[n]['uninstall']]
+    for n in [n for n in apt_all if n not in installed]:  # already gone (removed some other way)
+        del record[n]
+    apt_all = [n for n in apt_all if n in installed]
+    apt_gone, apt_kept = apt_plan(apt_all) if apt_all else (set(), set())
+    gone = [n for n in gone if n in record and n not in apt_kept]
+    for n in sorted(apt_kept):
+        warn(f'{n}: other installed packages need it; kept, as an ordinary dependency (no longer tracked)')
+        quiet(SUDO + ['apt-mark', 'auto', n])
+        del record[n]
     if gone and confirm('Linux packages', gone):
-        apt_gone = [n for n in gone if record[n]['kind'] == 'apt' and not record[n]['uninstall']]
+        removed_repos = {n: record[n].get('repo') for n in gone}
         if apt_gone:
-            if run('apt remove ' + ' '.join(apt_gone), SUDO + ['apt-get', 'remove', '-y', '-qq'] + apt_gone):
+            if apt_remove_safely(apt_gone, (doc().get('settings') or {}).get('autoremove', True)):
                 for n in apt_gone:
                     del record[n]
-                if (doc().get('settings') or {}).get('autoremove', True):
-                    run('apt autoremove', SUDO + ['apt-get', 'autoremove', '-y', '-qq'])
             else:
                 failed.append('apt remove')
         for n in [n for n in gone if n in record]:
@@ -382,8 +518,9 @@ def linux():
             elif r['uninstall']:
                 ok = run(f'uninstall {n}', r['uninstall'], r.get('interactive', False))
             elif r['kind'] == 'github':
-                if os.path.exists(os.path.join(BIN, n)):
-                    os.remove(os.path.join(BIN, n))
+                for f in [n] + r.get('extra', []):
+                    if os.path.exists(os.path.join(BIN, f)):
+                        os.remove(os.path.join(BIN, f))
                 log(f'uninstall {n}')
                 ok = True
             else:
@@ -393,12 +530,16 @@ def linux():
                 del record[n]
             else:
                 failed.append(f'uninstall {n}')
+        # their apt sources, unless an entry still in packages.yaml uses the same one
+        kept_repos = {p['repo']['name'] for p in kept if 'repo' in p}
+        for n in gone:
+            repo = removed_repos.get(n)
+            if repo and n not in record and repo not in kept_repos:
+                drop_repo(repo)
 
     # the apt repos it added: all with --purge, an opt-in desktop's once it's dropped
     for r in [p['repo'] for p in load('linux') if 'repo' in p and (PURGE or dropped(p))]:
-        files = [f'/usr/share/keyrings/{r["name"]}-archive-keyring.gpg', f'/etc/apt/sources.list.d/{r["name"]}.list']
-        if any(os.path.exists(f) for f in files):
-            run(f'apt repo {r["name"]} removed', SUDO + ['rm', '-f'] + files)
+        drop_repo(r['name'])
 
 
 def font_installed(prefix):

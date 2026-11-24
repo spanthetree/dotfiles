@@ -1,0 +1,11 @@
+Some(([
+    "com.system76.CosmicAppletWorkspaces",
+], [
+    "io.github.leonardo_panseri.cosmic-ext-applet-sysmon",
+    "dev.dotfiles.CosmicAppletInput",
+    "com.system76.CosmicAppletAudio",
+    "com.system76.CosmicAppletBluetooth",
+    "com.system76.CosmicAppletNetwork",
+    "com.system76.CosmicAppletBattery",
+    "com.system76.CosmicAppletPower",
+]))

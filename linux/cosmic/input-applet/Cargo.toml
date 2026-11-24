@@ -1,0 +1,21 @@
+# COSMIC panel applet: the fcitx5 input method as text (EN / あ), like the Hyprland panel's indicator.
+# Built and installed by the cosmic-applet-input entry in packages.yaml (install.cmd --cosmic).
+[package]
+name = "dotfiles-cosmic-applet-input"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[dependencies]
+tokio = { version = "1", features = ["rt", "macros", "time"] }
+zbus = { version = "5", default-features = false, features = ["tokio"] }
+
+[dependencies.libcosmic]
+git = "https://github.com/pop-os/libcosmic.git"
+rev = "b9c24d24212a865977db4871efc13ff890055648"   # as cosmic-caffeine's lock file: known to build here
+features = ["applet", "applet-token", "dbus-config", "multi-window", "tokio", "wayland", "winit"]   # as cosmic-caffeine: other sets don't compile at this rev
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

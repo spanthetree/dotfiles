@@ -2,6 +2,46 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [SemVer](https://semver.org/), tagged `vX.Y.Z`.
 
+## [4.4.0] - 2026-11-25
+
+### Added
+- trippy (`trip`), a traceroute + ping TUI, from its GitHub release with `cap_net_raw` so it runs without sudo. Config in `linux/trippy/trippy.toml` (AS names, IP and hostname per hop, SynthWave '84 colours). Its world map and hop locations use MaxMind's free GeoLite2 City database: the installer asks once for a MaxMind account ID and license key (Enter skips) and keeps the database current with geoipupdate on each run.
+- SuzieQ (`suzieq-cli`, `suzieq-gui`, `sq-poller`): polls network devices over SSH into a store you can query. Installed with uv on Python 3.10-3.11, with uvloop (SuzieQ needs it but doesn't declare it). The installer writes `~/.suzieq/suzieq-cfg.yml` from `linux/suzieq/suzieq-cfg.yml` with your home directory and timezone filled in; a config you wrote yourself is left alone. Devices to poll go in `~/.suzieq/inventory.yml`, per machine. The `sq-poller` function in `zshrc` makes the poller's workers use SuzieQ's own Python instead of pyenv's.
+- rustnet, a network monitor TUI showing connections per process, from its PPA (domcyrus/rustnet).
+- sshs, a TUI for picking a host from `~/.ssh/config`, from its GitHub release. The `sshs` alias sets SynthWave '84 pink (sshs takes only Tailwind palette names).
+- termscp, a TUI file transfer client (SFTP, SCP, FTP, S3, SMB, WebDAV), from its GitHub release, with a SynthWave '84 theme in `linux/termscp/theme.toml`.
+- tldr pages set up by the installer: tealdeer now comes from its GitHub release (Ubuntu 24.04's apt build can't download pages any more), the installer fetches and refreshes the pages each run, and `linux/tealdeer/config.toml` turns on weekly self-updates and SynthWave '84 colours.
+- Shell: carapace completions, navi cheatsheets on `Ctrl-G` (with denisidoro/cheats), mise (activated after pyenv/rbenv/nvm), fzf from its GitHub release with `fzf --zsh` key bindings, tmux-fingers on `F12 F`, `kitten icat` (`icat` alias; byobu now allows passthrough).
+- Data and logs: jaq, gron, jc, lnav, rare, VisiData.
+- Dev: d2, sops + age, step, grpcurl, websocat, usql, kcat, httpstat.
+- Kubernetes and cloud: krew with neat, tree, view-secret, node-shell, df-pv and who-can; kubeshark; helm-diff; helmfile; tflint; terraform-docs; infracost; steampipe; granted (`assume` alias).
+- Network: asn, globalping, monocle, gnmic, lldpd, RustScan, nmap-formatter, arp-scan, fping, hping3, scamper, grepcidr, mapcidr, ngrep, tcpflow, conntrack, ethtool, pwru, bpftrace, BCC tools, oha; TTP with ntc-templates (the `ntc` function parses show-command output to JSON).
+- containerlab, from its release `.deb`; you're added to `clab_admins` so it runs without sudo (next login). `netshoot` and `knetshoot` functions open nicolaka/netshoot in a container's or pod's network namespace.
+- Joplin for notes: the terminal app (`joplin`, with its own Node LTS in `~/.local/share/joplin-cli`), the desktop app on a Linux desktop (Joplin's installer, `~/.joplin`) and on Windows (winget). Sync is set per machine in each app.
+- Aliases for drop-in replacements: `top`/`htop` → btop, `watch` → viddy, `ncdu` → gdu, `cloc` → scc, `http`/`https` → xh, `tree` → `eza --tree`.
+- `packages.yaml`: `extra:` installs more binaries from the same GitHub release archive; krew entries take `tools:` (kubectl plugins); an entry's apt repo is removed along with it.
+- COSMIC: the input method in the panel as `EN` / `あ`, like the Hyprland panel's (click switches, right click opens fcitx5's settings). This repo's own small applet (`linux/cosmic/input-applet`), built with cargo by `packages.yaml`: COSMIC's Input Sources applet shows only the keyboard layout, and fcitx5's tray icon only shows among every other tray icon.
+- COSMIC: the panel and dock settings: see-through and small, with the applet layout in `linux/cosmic/panel` (status area, input sources, accessibility and tiling applets out; notifications next to the clock).
+- Linux desktops: the DepartureMono (retro-futuristic pixel) and Terminess (Terminus) Nerd Fonts, from the Nerd Fonts release, next to FantasqueSansM and JetBrainsMono.
+
+### Changed
+- kitty: Departure Mono Nerd Font at 16.5 pt (22 px, where the pixel font is sharp), instead of FantasqueSansM at 14.
+- The Hyprland layer (hyprbars, hyprfocus, Hyprspace, hyprshell, wayle, kanshi, wf-recorder; `when: in-hyprland` in `packages.yaml`) is installed and updated only on a run from inside Hyprland, or where `--hyprland` was chosen. From COSMIC or GNOME it's skipped quietly (and kept): no more hyprbars notice or hyprshell update there.
+- helm is always this installer's own, in `~/.local/bin`: an older helm installed some other way can't load the current helm-diff plugin. Remove the other one (e.g. `/usr/local/bin/helm`), which comes first on the PATH.
+- terraform comes from tenv (`terraform`, `tofu`, `terragrunt` proxies; the version follows each project), not HashiCorp's apt repo. The next run offers to uninstall the apt terraform.
+
+### Removed
+- COSMIC: the Hyprland setup's wallpaper as COSMIC's background. skwd-wall (`Super-W`) sets the wallpaper; COSMIC's own background goes back to what it was before (unless changed in Settings since). A setting dropped from `COSMIC_KEYS` now always goes back this way.
+- Duplicates of other tools: httpie (xh), ncdu (gdu), cloc (scc), entr (watchexec), bandwhich (rustnet), jless (fx), tcptraceroute (`trip -P tcp`, `mtr --tcp`). The next run offers to uninstall them.
+
+### Fixed
+- A desktop's settings and links were removed whenever its programs were missing during a run (e.g. after apt removed them), as if `--no-cosmic` / `--no-hyprland` had been given: COSMIC's shortcuts, panel and theme were reset, and Hyprland's drop-ins unlinked (so its services crashed in COSMIC). Now only `--no-cosmic`, `--no-hyprland` or `--uninstall` remove them; otherwise the installer warns and leaves them.
+- Uninstalling an apt package dropped from `packages.yaml` could remove the whole desktop: `apt-get remove -y` takes every package that depends on it, and the old `--adopt` and every install run claimed libraries already there as dependencies (they were passed to `apt-get install`, which marks them as installed by hand). Now packages already installed aren't passed to apt; only packages apt has as installed by hand count as this repo's; a package something else needs is kept as a dependency instead of removed; each removal is simulated and refused if it would take more, or anything essential or of the desktop; and the system-wide `apt-get autoremove` is gone (only what the removal itself left unneeded goes).
+- An entry's own apt steps (build tools for hyprbars, wayle, hyprshell, the COSMIC applets; skwd-wall's and containerlab's packages) used `apt-get install` / `apt-get remove` directly, with the same risk. They now go through `linux/apt-deps`: it installs only what's missing and records it, and removes only what it recorded and apt can remove without taking anything else. Uninstalling containerlab also takes you out of `clab_admins`.
+- `Alt-Tab` under COSMIC flipped windows at once, instead of showing the switcher, from apps with Japanese input on (VS Code, Claude Desktop and other Electron apps). fcitx5 let go of `Alt` as the app lost focus; the installer now sets its `PersistentVirtualKeyboard` (`~/.config/fcitx5/conf/waylandim.conf`), which stops that. Restart fcitx5 or log in again.
+- kitty has Japanese input again: it was turned off as a workaround for the same `Alt-Tab` problem.
+- An apt repo added another way too (e.g. with `add-apt-repository`) got a second, conflicting source from the installer ("Conflicting values set for option Signed-By"), and apt stopped working. The installer now uses the existing one, and removes its own copy from an earlier run.
+
 ## [4.3.0] - 2026-11-24
 
 ### Added
@@ -265,6 +305,7 @@ Existing machines: run `install.sh --packages --adopt` once (so removing a packa
 ### Added
 - Initial repo: zsh (antidote, replaces Prezto), Starship prompt and status config, byobu 4-row status bar, vim (vim-plug, replaces pathogen), Windows Terminal settings merge, `install.sh` with backup-then-link.
 
+[4.4.0]: https://github.com/spanthetree/dotfiles/compare/v4.3.0...v4.4.0
 [4.3.0]: https://github.com/spanthetree/dotfiles/compare/v4.2.0...v4.3.0
 [4.2.0]: https://github.com/spanthetree/dotfiles/compare/v4.1.0...v4.2.0
 [4.1.0]: https://github.com/spanthetree/dotfiles/compare/v3.2.0...v4.1.0

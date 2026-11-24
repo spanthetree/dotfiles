@@ -30,7 +30,8 @@ Semver: new feature = minor, fix = patch, a change that needs manual steps on ex
 
 - **Python:** `packages.py` must run under `/usr/bin/python3 -I`. pyenv's python has no PyYAML.
 - **Python /dev/tty:** don't open `/dev/tty` with `'r+'`. In text mode it raises "not seekable" (an OSError). Use separate read and write handles.
-- **fzf is 0.44** (Ubuntu 24.04 apt). Don't use newer fzf options. `--listen`, `transform-prompt` and `change:reload` work.
+- **fzf** comes from its GitHub release (latest), but an apt fzf the installer didn't install stays first on PATH, and Ubuntu 24.04's is 0.44. Keep byobu's scripts to 0.44 options: `--listen`, `transform-prompt` and `change:reload` work.
+- **tealdeer from apt can't fetch pages on Ubuntu 24.04** (1.6's built-in download URL is gone, and 1.6 can't be pointed elsewhere). That's why `tldr` comes from its GitHub release.
 - **Shell field splitting:** `read` with a tab IFS merges empty fields. Use `cut -f`/awk for tmux format output with possibly empty fields.
 - **tmux status list:** `#[list=focus]` only works when `#[list=on]` follows the focused item.
 - **tmux prompts:** inside `confirm-before`, `Ctrl-W` is delete-word. That's why "Ctrl-W twice closes" uses a key table (`close-tab`).
@@ -39,6 +40,8 @@ Semver: new feature = minor, fix = patch, a change that needs manual steps on ex
 - **winget `Microsoft.Sysinternals.Suite`** fails its hash check whenever Microsoft updates the unversioned zip. Use the Store id `9P7KNL5RWT25`.
 - **WSL mirrored networking:** NFS mounts need `noresvport`, or mounting hangs and WSL starts slowly.
 - **COSMIC config:** Settings saves a key by replacing its file, so a link into the repo gets turned into a plain copy. That's why `configure_cosmic` copies the files. `cosmic-settings appearance import` rejects `//` comments, and COSMIC 1.11 keeps the theme in `v2/`.
+- **fcitx5 and Alt-Tab:** without `PersistentVirtualKeyboard=True` (`~/.config/fcitx5/conf/waylandim.conf`, set by the installer), fcitx5 lets go of `Alt` whenever an app with an input method loses focus, so pivot's `Alt-Tab` flips at once. `GTK_IM_MODULE` doesn't help: Electron uses text-input-v3 directly.
+- **apt removals:** `apt-get remove` takes every package that depends on its arguments. Dropping three `libxcb` libraries from `packages.yaml` once removed the whole desktop (~1,200 packages). `packages.py` now only claims apt packages marked manual, never passes installed ones to `apt-get install` (that marks them manual), removes only what `apt_plan` shows takes nothing else, and has no system-wide autoremove. Script steps in `packages.yaml` use `linux/apt-deps` (install / own / remove) instead of apt-get, with the same rules. Keep it that way.
 - **The owner's zsh** has `noclobber`: overwrite with `>|`.
 - **Stale `HYPRLAND_INSTANCE_SIGNATURE`:** byobu's server keeps the one from when it started, so after a Hyprland restart, shells in byobu name a dead instance: hyprctl/hyprpm fail ("failed to get the current hyprland version"). The installer's `fix_hypr_signature` switches to the live one; when testing by hand, take the live dir under `/run/user/$UID/hypr/` (the one whose `hyprctl version` answers).
 - **Claude Code's safety check** blocks `rm` inside `bash -c`. Put the `rm` in a script file, as `command rm` (the plain `rm` alias is interactive).
@@ -47,6 +50,5 @@ Semver: new feature = minor, fix = patch, a change that needs manual steps on ex
 
 - **byobu stays.** zellij was compared and rejected.
 - **No atuin.**
-- **trippy was dropped.** Its report mode lacks AS data and its DNS was slow. Use mtr (`mtrr` alias).
 - **NextTrace is skipped.** It sends hop IPs to its own API by default.
 - **No proxy settings in the repo.** They are per-machine.

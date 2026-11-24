@@ -46,7 +46,7 @@ Byobu takes some keys first. See [hotkeys: clashes](hotkeys.md#clashes).
 Byobu binds it to save tabs. vim, nano and Claude Code still get it.
 
 **I see boxes instead of icons.**
-Your terminal needs a Nerd Font. The Windows installer installs JetBrainsMono Nerd Font and Windows Terminal uses it. On a Linux desktop the installer adds JetBrainsMono and FantasqueSansM Nerd Fonts, and kitty uses FantasqueSansM. Elsewhere, install one from https://www.nerdfonts.com and select it in your terminal.
+Your terminal needs a Nerd Font. The Windows installer installs JetBrainsMono Nerd Font and Windows Terminal uses it. On a Linux desktop the installer adds JetBrainsMono and FantasqueSansM Nerd Fonts, and kitty uses Departure Mono. Elsewhere, install one from https://www.nerdfonts.com and select it in your terminal.
 
 **Can I contribute?**
 Only verified bug fixes and interface improvements. For anything else, fork it. See the [README](../README.md#contributing).

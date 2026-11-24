@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Input Method (fcitx5)
+Comment=fcitx5's input method in the panel: EN or あ. Click switches, right click opens its settings
+Type=Application
+Exec=dotfiles-cosmic-applet-input
+Icon=input-keyboard-symbolic
+Terminal=false
+Categories=COSMIC;
+NoDisplay=true
+X-CosmicApplet=true

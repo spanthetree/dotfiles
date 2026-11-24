@@ -1,0 +1,36 @@
+# termscp: linked to ~/.config/termscp/theme.toml. SynthWave '84: the palette of linux/kitty/theme.conf and
+# linux/trippy/trippy.toml. Backgrounds stay "Default", so the terminal's own (kitty, Windows Terminal) shows through.
+# Saving a theme from termscp's settings (`termscp config`) writes here, into the repo.
+
+# Login form
+auth_address = "#36F9F6"
+auth_bookmarks = "#72F1B8"
+auth_password = "#B893CE"
+auth_port = "#F97E72"
+auth_protocol = "#FF7EDB"
+auth_recents = "#848BBD"
+auth_username = "#FEDE5D"
+
+# Dialogs and key hints
+misc_error_dialog = "#FE4450"
+misc_info_dialog = "#36F9F6"
+misc_input_dialog = "#FF7EDB"
+misc_keys = "#FF7EDB"
+misc_quit_dialog = "#FEDE5D"
+misc_save_dialog = "#72F1B8"
+misc_warn_dialog = "#F97E72"
+
+# File explorers: local pink, remote cyan
+transfer_local_explorer_background = "Default"
+transfer_local_explorer_foreground = "#E0DFE6"
+transfer_local_explorer_highlighted = "#FF7EDB"
+transfer_remote_explorer_background = "Default"
+transfer_remote_explorer_foreground = "#E0DFE6"
+transfer_remote_explorer_highlighted = "#36F9F6"
+transfer_log_background = "Default"
+transfer_log_window = "#848BBD"
+transfer_progress_bar_full = "#72F1B8"
+transfer_progress_bar_partial = "#FF7EDB"
+transfer_status_hidden = "#36F9F6"
+transfer_status_sorting = "#FEDE5D"
+transfer_status_sync_browsing = "#72F1B8"

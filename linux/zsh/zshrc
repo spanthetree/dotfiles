@@ -33,8 +33,15 @@ if (( $+widgets[history-substring-search-up] )); then
   bindkey '^[[B' history-substring-search-down
   bindkey '^[OB' history-substring-search-down
 fi
-# fzf: Ctrl-R fuzzy history, Ctrl-T file path (byobu takes Ctrl-T for new tab), Alt-C cd
-[[ -r /usr/share/doc/fzf/examples/key-bindings.zsh ]] && source /usr/share/doc/fzf/examples/key-bindings.zsh
+# fzf: Ctrl-R fuzzy history, Ctrl-T file path (byobu takes Ctrl-T for new tab), Alt-C cd, `**<Tab>` completion.
+# `fzf --zsh` from 0.48 (packages.yaml installs the latest); an older apt fzf has the scripts in its docs
+if (( $+commands[fzf] )) && fzf --zsh >/dev/null 2>&1; then
+  source <(fzf --zsh)
+elif [[ -r /usr/share/doc/fzf/examples/key-bindings.zsh ]]; then
+  source /usr/share/doc/fzf/examples/key-bindings.zsh
+fi
+# navi: Ctrl-G opens the cheatsheet picker; the chosen command lands on the prompt
+(( $+commands[navi] )) && eval "$(navi widget zsh)"
 
 # direnv: per-folder env from .envrc (run `direnv allow` once per folder)
 (( $+commands[direnv] )) && eval "$(direnv hook zsh)"
@@ -78,6 +85,36 @@ alias la='ll -A'
 alias d='dirs -v'
 # mtr report: 10 rounds, AS numbers, hostnames and IPs, wide (no truncated names)
 alias mtrr='mtr -z -b -r -w -c 10'
+# trippy: GeoIP (its map, locations per hop) when the installer's MaxMind database is there. trippy's config can't
+# name it: no `~` there, and trippy stops if the file is missing
+trip() {
+  local db=~/.local/share/GeoIP/GeoLite2-City.mmdb
+  if [[ -r $db ]]; then command trip -G $db "$@"; else command trip "$@"; fi
+}
+# SuzieQ's poller starts its workers with `#!/usr/bin/env python3`, which finds pyenv's python (no suzieq, no
+# uvloop): put its uv tool env first
+sq-poller() { PATH=~/.local/share/uv/tools/suzieq/bin:$PATH command sq-poller "$@" }
+# netshoot (nicolaka/netshoot): a shell full of network tools inside another container's or pod's network namespace,
+# for one that has no tools of its own. The image is pulled on first use.
+#   netshoot <container>        docker: same interfaces, IPs, routes and ports as that container
+#   netshoot                    docker: in the host's network namespace
+#   knetshoot <pod> [kubectl debug options]   ephemeral container in the pod (shares its network)
+netshoot() {
+  if (( $# )); then docker run --rm -it --net "container:$1" nicolaka/netshoot "${@:2}"
+  else docker run --rm -it --net host nicolaka/netshoot; fi
+}
+knetshoot() {
+  (( $# )) || { print -u2 "usage: knetshoot <pod> [-n namespace] [-c container ...]"; return 2 }
+  kubectl debug -it "$1" --image=nicolaka/netshoot "${@:2}"
+}
+# ntc-templates (TextFSM) on CLI output, JSON out: `ntc cisco_ios 'show ip int brief' < out.txt`.
+# Runs in the ttp tool's env (packages.yaml installs ntc-templates there)
+ntc() {
+  (( $# == 2 )) || { print -u2 "usage: ntc <platform> '<command>' < output.txt"; return 2 }
+  ~/.local/share/uv/tools/ttp/bin/python -I -c 'import json, sys
+from ntc_templates.parse import parse_output
+print(json.dumps(parse_output(platform=sys.argv[1], command=sys.argv[2], data=sys.stdin.read()), indent=2))' "$@"
+}
 
 ALIASFILE=~/.zsh_aliases
 [[ -r $ALIASFILE ]] && source $ALIASFILE
@@ -92,6 +129,8 @@ function add_alias() {
 }
 
 # --- Tool completions ---
+# carapace: completions for ~1000 commands; the tools' own below come after it, so theirs win for those
+(( $+commands[carapace] )) && source <(carapace _carapace zsh)
 (( $+commands[terraform] )) && complete -o nospace -C "$commands[terraform]" terraform
 (( $+commands[kubectl] )) && source <(kubectl completion zsh)
 (( $+commands[helm] )) && source <(helm completion zsh)
@@ -117,6 +156,10 @@ export UV_PROJECT_ENVIRONMENT=$VIRTUAL_ENV
 export NVM_DIR=$HOME/.nvm
 [[ -s $NVM_DIR/nvm.sh ]] && source $NVM_DIR/nvm.sh
 [[ -s $NVM_DIR/bash_completion ]] && source $NVM_DIR/bash_completion
+
+# --- mise: tool versions per project (mise.toml, .tool-versions). After pyenv, rbenv and nvm, so in a folder that
+# pins a version with mise, mise's comes first; elsewhere they're as before
+(( $+commands[mise] )) && eval "$(mise activate zsh)"
 
 # --- Secrets and machine-specific config (both untracked) ---
 if [[ -f ~/.zsh_secrets.gpg ]]; then

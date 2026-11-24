@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# apt-deps install|remove <package>...: the apt packages packages.yaml's script steps need (build tools, libraries).
+#   install: installs only the missing ones and records them (state dir, apt-deps). Ones already there are left
+#            untouched: `apt-get install` on them would mark them as installed by hand, i.e. as ours to remove.
+#   remove:  removes only ones it recorded, and only those apt removes without taking anything else with them, never
+#            an essential or required one. One that other packages still need stays, marked as a dependency.
+# `apt-get remove` takes every package that depends on what it removes: removing three libraries this way once
+# took the whole desktop with them. Script steps use this instead of apt-get remove.
+set -euo pipefail
+list=${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/apt-deps
+mkdir -p "$(dirname "$list")" && touch "$list"
+sudo=(); [[ $EUID -eq 0 ]] || sudo=(sudo)
+installed() { dpkg-query -W -f='${db:Status-Abbrev}' "$1" 2>/dev/null | grep -q '^ii'; }
+removes() { LC_ALL=C apt-get -s -qq remove "$@" 2>/dev/null | awk '/^Remv /{sub(/:.*/, "", $2); print $2}' | sort -u; }
+critical() {  # any of them essential, or of required/important priority
+  dpkg-query -W -f='${Essential} ${Priority}\n' "$@" 2>/dev/null | grep -qE '^yes |(required|important)$'
+}
+forget() { local p; for p; do grep -vxF "$p" "$list" >"$list.tmp" || true; mv -f "$list.tmp" "$list"; done; }
+
+cmd=${1:-}; shift || true
+case $cmd in
+  install)
+    missing=(); for p; do installed "$p" || missing+=("$p"); done
+    ((${#missing[@]})) || exit 0
+    "${sudo[@]}" env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${missing[@]}"
+    for p in "${missing[@]}"; do grep -qxF "$p" "$list" || echo "$p" >>"$list"; done
+    ;;
+  own)  # record packages a script installed itself (e.g. from a release .deb), for `remove`
+    for p; do installed "$p" && ! grep -qxF "$p" "$list" && echo "$p" >>"$list"; done; true
+    ;;
+  remove)
+    ours=(); for p; do grep -qxF "$p" "$list" && installed "$p" && ours+=("$p"); done
+    gone=(); for p; do installed "$p" || gone+=("$p"); done
+    ((${#gone[@]})) && forget "${gone[@]}"
+    ((${#ours[@]})) || exit 0
+    safe=() keep=()
+    for p in "${ours[@]}"; do  # safe: removing it takes nothing outside this list, and nothing critical
+      r=$(removes "$p")
+      if [[ -n $r ]] && ! grep -vxF -f <(printf '%s\n' "${ours[@]}") <<<"$r" >/dev/null && ! critical $r; then safe+=("$p")
+      else keep+=("$p"); fi
+    done
+    if ((${#safe[@]})); then
+      r=$(removes "${safe[@]}")  # once more, all together: exactly these, or nothing
+      if grep -vxF -f <(printf '%s\n' "${safe[@]}") <<<"$r" >/dev/null || critical $r; then
+        echo "apt-deps: apt would remove more than ${safe[*]}; nothing removed" >&2; exit 1
+      fi
+      "${sudo[@]}" env DEBIAN_FRONTEND=noninteractive apt-get remove -y -qq "${safe[@]}"
+      forget "${safe[@]}"
+    fi
+    if ((${#keep[@]})); then
+      echo "apt-deps: kept (other packages need them), now ordinary dependencies: ${keep[*]}"
+      "${sudo[@]}" apt-mark auto "${keep[@]}" >/dev/null
+      forget "${keep[@]}"
+    fi
+    ;;
+  *) echo "usage: apt-deps install|own|remove <package>..." >&2; exit 2 ;;
+esac

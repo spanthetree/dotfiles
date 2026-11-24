@@ -1,0 +1,16 @@
+# SuzieQ config template. The installer (the suzieq entry in packages.yaml) writes it to ~/.suzieq/suzieq-cfg.yml,
+# with the home directory and this machine's timezone filled in: SuzieQ doesn't expand `~` or variables in paths
+# (its CLI made a literal `~` dir), and shows UTC without a timezone.
+# Devices to poll go in ~/.suzieq/inventory.yml, per machine and never in this repo.
+data-directory: @HOME@/.suzieq/parquet
+temp-directory: /tmp/suzieq
+poller:
+  logging-level: WARNING
+  period: 60
+  connect-timeout: 15
+  logfile: /tmp/sq-poller.log
+coalescer:
+  period: 1h
+  logfile: /tmp/sq-coalescer.log
+analyzer:
+  timezone: @TZ@

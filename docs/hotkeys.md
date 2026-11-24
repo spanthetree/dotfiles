@@ -24,6 +24,7 @@ Browser-style tab keys. Byobu's own F-keys and Alt-arrows still work.
 | `Alt-D` | tab popup for every session (below); `Alt-D` again closes it |
 | `Ctrl-S` | save tabs now (in vim, nano and Claude Code: passed to the app) |
 | `Ctrl-F7` | start / stop logging this pane to `~/logs/` |
+| `F12 F` / `F12 J` | tmux-fingers: label URLs, paths, IPs, hashes on screen; type a label to copy it / jump there |
 | click a tab / a key hint | go to that tab / act like the key (the close hint asks first) |
 
 In the `Alt-D` popup:
@@ -329,9 +330,11 @@ Defaults; full list: `Ctrl-,` → Actions.
 | yazi | arrows / `h j k l`, `Enter` / `o` open, `Space` select, `y` copy, `x` cut, `p` paste, `d` trash, `D` delete, `a` new (end with `/` for a folder), `r` rename, `.` hidden files, `s` / `S` search names / contents, `/` find, `z` zoxide jump, `t` new tab, `q` quit | `F1` or `~` |
 | broot | type to filter, `Enter` open / go into, `Esc` back, `Ctrl-Right` / `Ctrl-Left` open / close a preview panel, `Alt-H` hidden files, `Alt-I` git-ignored files, `Space` or `:` then a verb (`:rm`, `:mv`, `:cp`), `Ctrl-Q` quit | `?` |
 | btop | `Esc` menu, `1`…`4` show CPU / memory / network / processes, `f` filter, `e` tree, `t` / `k` terminate / kill, `Enter` process details, `q` quit | `F1` |
-| gdu / ncdu | arrows, `Enter` open, `Left` up, `d` delete, `n` / `s` / `C` sort by name / size / count, `q` quit | `?` |
-| jless | `j` / `k` move, `h` / `l` collapse / expand, `Space` toggle, `c` / `e` collapse / expand siblings, `/` `?` `n` `N` search, `yy` copy value, `yp` copy path, `q` quit | `F1` |
+| gdu (`ncdu`) | arrows, `Enter` open, `Left` up, `d` delete, `n` / `s` / `C` sort by name / size / count, `q` quit | `?` |
 | fx | arrows, `e` / `E` expand, `c` / `C` collapse, `/` search, `.` go to path, `q` quit | `?` |
+| navi (`Ctrl-G` in zsh) | type to filter cheats, `Enter` pick (fills in the arguments), `Tab` / `Esc` | `navi --help` |
+| lnav | `/` search, `:filter-in` / `:filter-out`, `;` SQL, `e` / `E` next / previous error, `q` quit | `?` |
+| VisiData (`vd`) | arrows, `[` `]` sort, `F` frequency table, `Shift-F` on a column, `/` search, `Ctrl-H` help, `q` back | `Ctrl-H` |
 | termshark | `/` display filter, `Tab` next pane, `Enter` select, `q` quit | `?` |
 | viddy | `Space` time machine (step through past runs), `s` pause, `d` diff, `/` search, `q` quit | `?` |
 | less, bat, man | `Space` / `b` page, `g` / `G` top / bottom, `/` `n` `N` search, `q` quit | `h` |

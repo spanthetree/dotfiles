@@ -16,11 +16,15 @@ BACKUP="$HOME/.dotfiles-backup/$(date +%Y%m%d-%H%M%S)"
 PACKAGES=1
 UNINSTALL=0
 PKG_FLAGS=()
+# A desktop's settings and links are removed only when asked (--no-cosmic / --no-hyprland, or --uninstall), never
+# because its programs are missing: an apt mishap that removed COSMIC mid-run once also wiped its settings.
+DROP_COSMIC=0 DROP_HYPRLAND=0
 for arg in "$@"; do
   case $arg in
     --packages) ;;  # the default now; kept so older commands still work
     --no-packages) PACKAGES=0 ;;
-    --adopt|--yes|--cosmic|--no-cosmic|--hyprland|--no-hyprland) PKG_FLAGS+=("$arg") ;;
+    --adopt|--yes|--cosmic|--no-cosmic|--hyprland|--no-hyprland) PKG_FLAGS+=("$arg")
+      case $arg in --no-cosmic) DROP_COSMIC=1 ;; --no-hyprland) DROP_HYPRLAND=1 ;; esac ;;
     --uninstall) UNINSTALL=1 ;;
     --no-fx) NO_FX=1 ;;
     -h|--help) sed -n '2,11s/^# \{0,1\}//p' "$0"; exit 0 ;;
@@ -163,6 +167,9 @@ LINKS=(
   linux/byobu/backend                 .config/byobu/backend
   linux/byobu/bin                     .config/byobu/bin
   linux/vim/vimrc                     .vimrc
+  linux/trippy/trippy.toml            .config/trippy/trippy.toml
+  linux/termscp/theme.toml            .config/termscp/theme.toml
+  linux/tealdeer/config.toml          .config/tealdeer/config.toml
   linux/kitty/dotfiles.conf           .config/kitty/dotfiles.conf
   linux/kitty/theme.conf              .config/kitty/theme.conf
   linux/hypr/dotfiles.lua             .config/hypr/dotfiles.lua
@@ -193,7 +200,7 @@ link_configs() {
   for ((i = 0; i < ${#LINKS[@]}; i += 2)); do
     [[ ${LINKS[i + 1]} == .config/kitty/* ]] && ! have kitty && continue  # kitty: packages.yaml, on a desktop
     if [[ ${LINKS[i + 1]} == .config/hypr/* || ${LINKS[i + 1]} == .config/systemd/user/* ]] && ! have Hyprland; then
-      unlink_ours "$HOME/${LINKS[i + 1]}"  # --no-hyprland: Hyprland was uninstalled (or never there)
+      (( DROP_HYPRLAND )) && unlink_ours "$HOME/${LINKS[i + 1]}"  # --no-hyprland; otherwise links stay as they are
       continue
     fi
     [[ ${LINKS[i + 1]} == .config/hyprshell/* && ! -x $HOME/.local/bin/hyprshell ]] && continue  # built only on GTK 4.18+
@@ -202,7 +209,7 @@ link_configs() {
     if [[ ${LINKS[i + 1]} == .config/cosmic* || ${LINKS[i + 1]} == .config/autostart/dotfiles-* ||
           ${LINKS[i + 1]} == .config/autostart/blueman.desktop ||
           ${LINKS[i + 1]} == .local/bin/dotfiles-record ]] && ! have cosmic-session; then
-      unlink_ours "$HOME/${LINKS[i + 1]}"  # --no-cosmic: COSMIC was uninstalled
+      (( DROP_COSMIC )) && unlink_ours "$HOME/${LINKS[i + 1]}"  # --no-cosmic; otherwise links stay as they are
       continue
     fi
     link "${LINKS[i]}" "$HOME/${LINKS[i + 1]}"
@@ -297,6 +304,81 @@ configure_git() {
   log "git: delta pager"
 }
 
+# trippy's map and locations: MaxMind's free GeoLite2 City database, fetched and kept fresh by geoipupdate (it only
+# downloads when MaxMind has a newer one). That needs a free MaxMind account: asked once for its account ID and a
+# license key, saved for geoipupdate in GEOIP_CONF (readable only by you; per machine, never in the repo). Enter at
+# the prompt skips it, remembered in GEOIP_SKIP; delete that file to be asked again.
+GEOIP_CONF="$HOME/.config/GeoIP.conf"
+GEOIP_DIR="$HOME/.local/share/GeoIP"
+GEOIP_SKIP="${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/geoip-skipped"
+GEOIP_MARK="# dotfiles installer: MaxMind GeoLite2 for trippy (configure_geoip in linux/install.sh)"
+configure_geoip() {
+  have trip && have geoipupdate || return 0
+  if [[ ! -f $GEOIP_CONF ]]; then
+    [[ -f $GEOIP_SKIP ]] && return 0
+    if ! { : </dev/tty; } 2>/dev/null; then
+      warn "GeoIP: no terminal to ask for a MaxMind license key; trip runs without its map (re-run interactively)"
+      return 0
+    fi
+    local id key
+    {
+      printf '\n  GeoIP for trip'"'"'s map: a free MaxMind account (https://www.maxmind.com/en/geolite2/signup),\n'
+      printf '  then Account > Manage license keys > Generate. Enter skips (asked again if you delete %s).\n' \
+        "${GEOIP_SKIP/#$HOME/\~}"
+    } >/dev/tty
+    read -r -p '  MaxMind account ID: ' id </dev/tty
+    if [[ -z $id ]]; then
+      mkdir -p "$(dirname "$GEOIP_SKIP")"; : >"$GEOIP_SKIP"
+      log "GeoIP: skipped; trip runs without its map"
+      return 0
+    fi
+    read -r -s -p '  MaxMind license key: ' key </dev/tty; printf '\n' >/dev/tty
+    if [[ ! $id =~ ^[0-9]+$ || -z $key ]]; then warn "GeoIP: the account ID is a number and the key can't be empty; not saved"; return 0; fi
+    mkdir -p "$(dirname "$GEOIP_CONF")" "$GEOIP_DIR"
+    ( umask 077; printf '%s\nAccountID %s\nLicenseKey %s\nEditionIDs GeoLite2-City\nDatabaseDirectory %s\n' \
+        "$GEOIP_MARK" "$id" "$key" "$GEOIP_DIR" >"$GEOIP_CONF" )
+    if ! spin "GeoIP: GeoLite2 City" geoipupdate -f "$GEOIP_CONF"; then
+      command rm -f "$GEOIP_CONF"  # asked again next run
+      warn "GeoIP: download failed; check the account ID and license key (asked again on the next run)"
+    fi
+    return 0
+  fi
+  mkdir -p "$GEOIP_DIR"
+  spin "GeoIP: GeoLite2 City" geoipupdate -f "$GEOIP_CONF" || warn "GeoIP: update failed; trip keeps the database it has"
+}
+uninstall_geoip() {
+  command rm -f "$GEOIP_SKIP"
+  [[ -f $GEOIP_CONF && $(head -n 1 "$GEOIP_CONF") == "$GEOIP_MARK" ]] || return 0
+  command rm -f "$GEOIP_CONF" "$GEOIP_DIR/GeoLite2-City.mmdb" "$GEOIP_DIR/.geoipupdate.lock"
+  rmdir "$GEOIP_DIR" 2>/dev/null || true
+  log "GeoIP: MaxMind key and GeoLite2 database removed"
+}
+
+# SuzieQ: ~/.suzieq/suzieq-cfg.yml from linux/suzieq/suzieq-cfg.yml. A copy, not a link: SuzieQ doesn't expand `~`
+# in paths, so the template's @HOME@ and @TZ@ (this machine's timezone; SuzieQ shows UTC otherwise) are filled in.
+# Rewritten each run while it's ours (first line SUZIEQ_MARK); a config you wrote yourself is left alone. The
+# inventory (~/.suzieq/inventory.yml) and the collected data (~/.suzieq/parquet) are yours: never touched.
+SUZIEQ_CFG="$HOME/.suzieq/suzieq-cfg.yml"
+SUZIEQ_MARK="# dotfiles installer: from linux/suzieq/suzieq-cfg.yml (configure_suzieq in linux/install.sh)"
+configure_suzieq() {
+  [[ -x $HOME/.local/share/uv/tools/suzieq/bin/sq-poller ]] || return 0
+  if [[ -f $SUZIEQ_CFG && $(head -n 1 "$SUZIEQ_CFG") != "$SUZIEQ_MARK" ]]; then
+    log "suzieq: ${SUZIEQ_CFG/#$HOME/\~} is your own, left as is"; return 0
+  fi
+  local tz; tz=$(timedatectl show -p Timezone --value 2>/dev/null) || true
+  [[ -n $tz ]] || tz=$(cat /etc/timezone 2>/dev/null) || true
+  mkdir -p "$(dirname "$SUZIEQ_CFG")"
+  { printf '%s\n' "$SUZIEQ_MARK"
+    sed -e "s|@HOME@|$HOME|g" -e "s|@TZ@|${tz:-UTC}|g" "$DOT/linux/suzieq/suzieq-cfg.yml"; } >|"$SUZIEQ_CFG"
+  log "suzieq: ${SUZIEQ_CFG/#$HOME/\~} (timezone ${tz:-UTC})"
+}
+uninstall_suzieq() {
+  [[ -f $SUZIEQ_CFG && $(head -n 1 "$SUZIEQ_CFG") == "$SUZIEQ_MARK" ]] || return 0
+  command rm -f "$SUZIEQ_CFG"
+  rmdir "$(dirname "$SUZIEQ_CFG")" 2>/dev/null || true  # only if no inventory or data is left in it
+  log "suzieq: config removed (inventory and data kept)"
+}
+
 # kitty: include our dotfiles.conf (byobu settings + theme.conf) last in each kitty.conf kitty reads, so it wins
 # and every session looks the same; the rest of those files stays the user's (or a desktop setup's).
 #   ~/.config/kitty/kitty.conf: kitty's default, e.g. Ubuntu's GNOME (created if missing)
@@ -372,6 +454,11 @@ WALLSEL="$HOME/.config/hypr/scripts/WallpaperSelect.sh"
 WAYBAR_STARTUP="$HOME/.config/hypr/scripts/WaybarStartup.sh"
 WAYBAR_SKIP='[ "$("$HOME/.config/hypr/dotfiles-panel.sh" 2>/dev/null)" = wayle ] && exit 0  # dotfiles: wayle is the panel'
 FCITX_PROFILE="$HOME/.config/fcitx5/profile"
+# fcitx5's Wayland frontend: keep its virtual keyboard when focus leaves an app. Without it, fcitx5 drops the virtual
+# keyboard as the app loses focus, which lets go of the keys it held, Alt too: Alt-Tab's switcher (pivot under COSMIC)
+# took Alt as released and flipped windows at once, from any app with Japanese input on (kitty, VS Code, Electron).
+FCITX_WAYLANDIM="$HOME/.config/fcitx5/conf/waylandim.conf"
+FCITX_WAYLANDIM_TEXT='PersistentVirtualKeyboard=True'
 FCITX_PROFILE_TEXT='[Groups/0]
 # Group Name
 Name=Default
@@ -408,7 +495,7 @@ drop_line() {
 }
 hypr_version() { Hyprland --version 2>/dev/null | awk 'NR == 1 {print $2}'; }
 configure_hyprland() {
-  have Hyprland || { drop_hypr_dropins; return 0; }  # --no-hyprland: its files went with it; the drop-ins' dirs stay
+  have Hyprland || { (( DROP_HYPRLAND )) && drop_hypr_dropins; return 0; }  # --no-hyprland: the drop-ins' dirs too
   # the hyprland-only.conf drop-ins (LINKS): systemd reads them on a reload
   systemctl --user daemon-reload 2>/dev/null || true
   local v; v=$(hypr_version)
@@ -418,7 +505,7 @@ configure_hyprland() {
   fi
   [[ -f $HYPR_KEYS ]] || { warn "Hyprland: no ${HYPR_KEYS/#$HOME/\~} (desktop setup not copied yet?); Hyprland settings skipped"; return 0; }
   # the hyprpm plugins (packages.yaml) are only built from inside a running Hyprland
-  if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]] && have hyprpm &&
+  if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} && -e ${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/desktop-hyprland ]] && have hyprpm &&
      ! hyprpm list 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | grep -A1 'Plugin Hyprspace$' | grep -q 'enabled: true'; then
     log "Hyprland: title bars and overview (hyprpm plugins) come on a run of the installer inside Hyprland"
   fi
@@ -487,6 +574,11 @@ configure_fcitx_profile() {  # Hyprland and COSMIC
     printf '%s\n' "$FCITX_PROFILE_TEXT" >| "$FCITX_PROFILE"
     log "fcitx5: US keyboard + Mozc (Ctrl-Space switches)"
   fi
+  if have fcitx5 && [[ ! -e $FCITX_WAYLANDIM ]]; then  # one the user made stays theirs
+    mkdir -p "$(dirname "$FCITX_WAYLANDIM")"
+    printf '%s\n' "$FCITX_WAYLANDIM_TEXT" >| "$FCITX_WAYLANDIM"
+    log "fcitx5: keeps its virtual keyboard across focus changes (Alt-Tab; restart fcitx5 or log in again)"
+  fi
 }
 drop_hypr_dropins() {  # the hyprland-only.conf drop-ins, once unlinked: their empty dirs, and tell systemd
   local u
@@ -538,6 +630,10 @@ uninstall_hyprland() {
   fi
   # ours unless changed since: compare without fcitx5's comments and blank lines (it rewrites the file)
   local strip='/^#/d; /^[[:space:]]*$/d'
+  if [[ -f $FCITX_WAYLANDIM ]] && [[ $(sed "$strip" "$FCITX_WAYLANDIM") == "$FCITX_WAYLANDIM_TEXT" ]]; then
+    command rm -f "$FCITX_WAYLANDIM"; rmdir "$(dirname "$FCITX_WAYLANDIM")" 2>/dev/null || true
+    log "fcitx5: Wayland frontend setting removed"
+  fi
   if [[ -f $FCITX_PROFILE ]] && [[ $(sed "$strip" "$FCITX_PROFILE") == "$(sed "$strip" <<<"$FCITX_PROFILE_TEXT")" ]]; then
     command rm -f "$FCITX_PROFILE"; rmdir "$(dirname "$FCITX_PROFILE")" 2>/dev/null || true
     log "fcitx5: input-method profile removed"
@@ -645,40 +741,60 @@ uninstall_gnome_input() {
 # COSMIC Settings, and is left alone. What was there before the first time goes to the backup dir.
 COSMIC_CFG="$HOME/.config/cosmic"
 COSMIC_STATE="$HOME/.local/state/dotfiles/cosmic"
-# The Hyprland desktop setup's current wallpaper (a copy it keeps updated): COSMIC shows the same one, read at login
-HYPR_WALLPAPER="$HOME/.config/hypr/wallpaper_effects/.wallpaper_current"
 COSMIC_KEYS=(  # <key file under ~/.config/cosmic> <value, or @file in this repo; empty: not set on this machine>
   com.system76.CosmicSettings.Shortcuts/v1/custom  @linux/cosmic/shortcuts.ron  # the Hyprland setup's keys
   com.system76.CosmicComp/v1/autotile              true      # tiling, as in Hyprland: on for every workspace
   com.system76.CosmicComp/v1/autotile_behavior     Global
   com.system76.CosmicComp/v1/workspaces            '(workspace_mode: OutputBound, workspace_layout: Horizontal)'
-  # The panel: COSMIC's own applets, plus (packages.yaml) Caffeine before the clock and the system monitor first on
-  # the right, where wayle has idle-inhibit and cpu/ram. An applet that isn't installed is skipped by the panel.
-  com.system76.CosmicPanel.Panel/v1/plugins_center 'Some(["com.github.cosmic-caffeine", "com.system76.CosmicAppletTime"])'
-  com.system76.CosmicPanel.Panel/v1/plugins_wings  'Some((["com.system76.CosmicPanelWorkspacesButton", "com.system76.CosmicPanelAppButton"], ["io.github.leonardo_panseri.cosmic-ext-applet-sysmon", "com.system76.CosmicAppletInputSources", "com.system76.CosmicAppletA11y", "com.system76.CosmicAppletStatusArea", "com.system76.CosmicAppletTiling", "com.system76.CosmicAppletAudio", "com.system76.CosmicAppletBluetooth", "com.system76.CosmicAppletNetwork", "com.system76.CosmicAppletBattery", "com.system76.CosmicAppletNotifications", "com.system76.CosmicAppletPower"]))'
-  # (an if, not &&: a failed test in $(...) would end the installer under set -e on machines without that file)
+  # The panel (top) and dock: see-through, small, and their applets (linux/cosmic/panel; in the format COSMIC
+  # Settings writes, so an unchanged one compares equal). Left: workspaces. Middle: Caffeine, clock, notifications.
+  # Right: system monitor and the input method (EN / あ, linux/cosmic/input-applet) first, where wayle has cpu/ram
+  # and the input method, then audio, Bluetooth, network, battery, power. An applet that isn't installed is skipped.
+  com.system76.CosmicPanel.Panel/v1/plugins_center @linux/cosmic/panel/panel-plugins_center.ron
+  com.system76.CosmicPanel.Panel/v1/plugins_wings  @linux/cosmic/panel/panel-plugins_wings.ron
+  com.system76.CosmicPanel.Panel/v1/opacity        0.45
+  com.system76.CosmicPanel.Panel/v1/size           S
+  com.system76.CosmicPanel.Dock/v1/plugins_center  @linux/cosmic/panel/dock-plugins_center.ron
+  com.system76.CosmicPanel.Dock/v1/plugins_wings   @linux/cosmic/panel/dock-plugins_wings.ron
+  com.system76.CosmicPanel.Dock/v1/opacity         0.45
+  com.system76.CosmicPanel.Dock/v1/size            S
+  com.system76.CosmicPanel.Dock/v1/border_radius   8
   # The system monitor's right click (and "Process monitor" in its popup): btop in kitty, as Hyprland's panel does
   io.github.leonardo_panseri.cosmic-ext-applet-sysmon/v1/process_monitor '"kitty -e btop"'
-  com.system76.CosmicBackground/v1/all             "$(if [[ -f $HYPR_WALLPAPER ]]; then printf '(
-    output: "all",
-    source: Path("%s"),
-    filter_by_theme: true,
-    rotation_frequency: 300,
-    filter_method: Lanczos,
-    scaling_mode: Zoom,
-    sampling_method: Alphanumeric,
-)' "$HYPR_WALLPAPER"; fi)"
+  # (No wallpaper: skwd-wall, Super-W, draws it. The Hyprland setup's, set here once, is taken back below.)
 )
+# A key dropped from COSMIC_KEYS (its copy is still in $COSMIC_STATE): unless it was changed in COSMIC Settings since,
+# put back what was there before this installer first set it (or remove it: COSMIC's default), and forget it.
+retire_cosmic_keys() {
+  local s rel f k keys=" "
+  for ((k = 0; k < ${#COSMIC_KEYS[@]}; k += 2)); do keys+="${COSMIC_KEYS[k]} "; done
+  [[ -d $COSMIC_STATE ]] || return 0
+  while IFS= read -r s; do
+    rel=${s#"$COSMIC_STATE"/}
+    [[ $rel == theme || $keys == *" $rel "* ]] && continue
+    f=$COSMIC_CFG/$rel
+    if [[ -f $f && $(<"$f") == "$(<"$s")" ]]; then
+      command rm -f "$f"; restore ".config/cosmic/$rel"
+      log "COSMIC: ~/.config/cosmic/$rel back to how it was (no longer set by these dotfiles)"
+    fi
+    command rm -f "$s"
+  done < <(find "$COSMIC_STATE" -type f)
+  find "$COSMIC_STATE" -mindepth 1 -depth -type d -empty -delete 2>/dev/null || true
+}
 cosmic_value() {  # cosmic_value <value or @file>
   if [[ $1 == @* ]]; then cat "$DOT/${1#@}"; else printf '%s' "$1"; fi
 }
 configure_cosmic() {
-  have cosmic-session || { uninstall_cosmic; return 0; }  # --no-cosmic: COSMIC was uninstalled
+  if ! have cosmic-session; then  # its settings go only with --no-cosmic (or --uninstall), not when it's just missing
+    if (( DROP_COSMIC )); then uninstall_cosmic
+    elif [[ -d $COSMIC_STATE ]]; then warn "COSMIC: not installed (removed some other way?); its settings left as they are"; fi
+    return 0
+  fi
   local i f s v changed=''
   for ((i = 0; i < ${#COSMIC_KEYS[@]}; i += 2)); do
     f=$COSMIC_CFG/${COSMIC_KEYS[i]} s=$COSMIC_STATE/${COSMIC_KEYS[i]}
     v=$(cosmic_value "${COSMIC_KEYS[i + 1]}")
-    [[ -n $v ]] || continue  # not for this machine (e.g. no Hyprland wallpaper)
+    [[ -n $v ]] || continue  # empty: not set on this machine
     [[ -L $f && $(readlink "$f") == "$DOT/"* ]] && command rm -f "$f"  # linked by older versions
     if [[ -f $f && $(<"$f") == "$v" ]]; then
       mkdir -p "$(dirname "$s")"; printf '%s' "$v" >| "$s"; continue
@@ -692,7 +808,8 @@ configure_cosmic() {
     printf '%s' "$v" >| "$f"; printf '%s' "$v" >| "$s"
     changed=1
   done
-  [[ -n $changed ]] && log "COSMIC: Hyprland's keys, tiling on, workspaces side by side, panel applets, wallpaper"
+  [[ -n $changed ]] && log "COSMIC: Hyprland's keys, tiling on, workspaces side by side, panel and dock"
+  retire_cosmic_keys
   configure_fcitx_profile
   configure_cosmic_theme
 }
@@ -786,6 +903,8 @@ uninstall_system() {
   local kc; for kc in "${KITTY_CONFS[@]}"; do
     if unkitty "$kc" "$KITTY_INCLUDE" "$KITTY_OLD_INCLUDE" "$KITTY_HYPR_INCLUDE"; then log "kitty: include removed from ${kc/#$HOME/\~}"; fi
   done
+  uninstall_geoip
+  uninstall_suzieq
   uninstall_hyprland
   if [[ -f $WAYLE_LOGO ]]; then command rm -f "$WAYLE_LOGO"; log "wayle: menu button logo removed"; fi
   uninstall_gnome_input
@@ -851,6 +970,8 @@ patch_windows_terminal
 configure_wsl
 configure_yasb
 configure_git
+configure_geoip
+configure_suzieq
 configure_kitty
 configure_hyprland
 configure_wayle_logo

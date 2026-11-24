@@ -35,7 +35,7 @@ Under WSL it also:
 - puts the YASB config in `%USERPROFILE%\.config\yasb` and turns on YASB's autostart, unless a Windows clone already manages it (`YASB_CONFIG_HOME`)
 
 On a Linux desktop (not WSL) it also:
-- installs kitty with this repo's config (`linux/kitty`: SynthWave '84, FantasqueSansM Nerd Font, byobu's keys), the JetBrainsMono and FantasqueSansM Nerd Fonts, VS Code, Spotify, and slurp for screen recording
+- installs kitty with this repo's config (`linux/kitty`: SynthWave '84, Departure Mono Nerd Font, byobu's keys), the JetBrainsMono and FantasqueSansM Nerd Fonts, VS Code, Spotify, and slurp for screen recording
 - sets up Japanese input with `Ctrl-Space`: ibus + Mozc on GNOME (the input-source switch moves there from `Super-Space`), fcitx5 + Mozc under Hyprland and COSMIC
 - adds this repo's layer to Hyprland wherever Hyprland is installed (below), however it got there
 
@@ -47,7 +47,7 @@ On every system it points git's pager at delta via `include.path` to `linux/git/
 
 It asks a few questions as it goes: its installer's checklist opens with [`linux/hypr/preset.sh`](../linux/hypr/preset.sh) ticked (its GTK themes, Thunar and Bluetooth; not its SDDM, zsh or AGS overview; NVIDIA setup only where there is an NVIDIA GPU), and its config asks about screen resolution, clock and the like. When the pinned config version moves ahead of the installed one, the next run upgrades it (`copy.sh --express-upgrade`, a few questions again). `--no-hyprland` and `--uninstall` run its own uninstaller, told to leave what this repo also installs (kitty, btop, slurp, `~/.config/kitty`).
 
-The layer works with a Hyprland installed some other way too: everything in it checks for Hyprland, not for this flag. Its services (hypridle, hyprpaper, swaync) start only in a Hyprland session (`linux/hypr/hyprland-only.conf`), not in GNOME or COSMIC.
+The layer works with a Hyprland installed some other way too: its packages (`when: in-hyprland`) install and update on a run from inside a Hyprland session, or wherever `--hyprland` was chosen. From GNOME or COSMIC they are skipped, and stay installed. Its services (hypridle, hyprpaper, swaync) start only in a Hyprland session (`linux/hypr/hyprland-only.conf`), not in GNOME or COSMIC.
 
 ## COSMIC
 
@@ -57,11 +57,10 @@ The layer works with a Hyprland installed some other way too: everything in it c
 - tiling on for every workspace, and workspaces side by side (`Super-Y` turns tiling off for one workspace)
 - the SynthWave '84 theme with frosted glass (`linux/cosmic/SynthWave-84.ron`), imported by the installer whenever it changes
 - `Ctrl-Alt-Shift-R` / `Ctrl-Alt-Shift-A` screen recording (with wl-screenrec, built with cargo)
-- Japanese input: fcitx5 + Mozc, `Ctrl-Space`, as under Hyprland (started by `linux/cosmic/fcitx5.desktop`; its environment in `linux/zsh/zprofile`)
+- Japanese input: fcitx5 + Mozc, `Ctrl-Space`, as under Hyprland (started by `linux/cosmic/fcitx5.desktop`; its environment in `linux/zsh/zprofile`), with `EN` / `あ` in the panel from this repo's own applet (`linux/cosmic/input-applet`; click switches, right click opens fcitx5's settings)
 - `Alt-Tab` with live window previews: [pivot](https://github.com/Sigma-studios/pivot), built with cargo at a pinned commit (early software; COSMIC's own switcher while it's missing)
 - in the panel: a system monitor ([sysmon](https://github.com/leonardo-panseri/cosmic-ext-applet-sysmon), built with cargo at a pinned commit; numbers in the panel, graphs in its popup, right click opens btop) and keep-awake ([Caffeine](https://github.com/Oussamaberchi/caffeine-cosmic), built with cargo), placed like wayle's on Hyprland
 - a wallpaper picker on `Super-W` with a built-in [Wallhaven](https://wallhaven.cc) browser that downloads and applies: [skwd-wall](https://github.com/liixini/skwd-wall), from its release's .debs at a pinned version (beta; its Ubuntu packages are new). It draws the wallpaper itself (its `skwd-walld` service, started only with COSMIC's session) over COSMIC's own background. Its optional AI search models (~1 GB) aren't installed
-- the Hyprland setup's current wallpaper, where there is one (read at login, so a wallpaper changed under Hyprland shows in COSMIC from the next login)
 
 Its settings are copied into `~/.config/cosmic`, not linked. A setting changed in COSMIC Settings afterwards is left alone, and the installer says so; delete the file and re-run to take the repo's again. `--uninstall` and `--no-cosmic` remove them again. kitty, byobu and the rest are there as on any desktop.
 
@@ -111,7 +110,10 @@ Left for you: `chsh -s /bin/bash` if you want another shell, and deleting the cl
 | File | For |
 |---|---|
 | `~/.zshrc.local` | kube contexts, machine-only aliases |
+| `~/.config/joplin`, `~/.config/joplin-desktop` | Joplin notes and its sync target and login, set in each app (`joplin config sync.target`) |
 | `~/.zsh_secrets.gpg` | tokens; decrypted and sourced at shell start |
+| `~/.suzieq/inventory.yml` | devices for SuzieQ to poll (`sq-poller -I ~/.suzieq/inventory.yml`) |
+| `~/.config/GeoIP.conf` | MaxMind account ID and license key for trippy's GeoIP data; written by the installer when you enter them |
 | `~/.config/byobu/disable-autolaunch` | touch it to stop byobu auto-starting |
 
 ## VS Code

@@ -125,3 +125,9 @@ set -g @continuum-restore 'off'
 run -b '~/.tmux/plugins/tmux-resurrect/resurrect.tmux'
 run -b '~/.tmux/plugins/tmux-continuum/continuum.tmux'
 run -b '$HOME/.config/byobu/bin/restore-tabs'
+
+# Hint-mode copy (tmux-fingers in packages.yaml): F12 F labels URLs, paths, IPs, hashes on screen; type a label to copy
+# it (F12 J jumps the cursor there instead)
+run -b '[ ! -x ~/.local/bin/tmux-fingers ] || ~/.local/bin/tmux-fingers load-config'
+# Let apps in a tab reach the terminal with escape sequences tmux doesn't know: `icat` (kitten icat) images in kitty
+set -g allow-passthrough on

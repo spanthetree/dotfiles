@@ -39,6 +39,19 @@ alias cat="bat"
 alias ls="eza"
 alias fd="fdfind --maxdepth 100"
 alias clip="xclip -sel c <"
+# Drop-in replacements: each takes the old tool's usual arguments. Not here because their flags differ: dust (du),
+# duf (df), procs (ps), sd (sed), doggo (dig), jaq (jq: a few filters differ). `command <name>` runs the original
+alias tree="eza --tree"
+alias top="btop"
+alias htop="btop"
+alias watch="viddy"         # same -n/-d/-t flags
+alias ncdu="gdu"
+alias cloc="scc"
+alias http="xh"             # httpie's syntax
+alias https="xh --https"
+alias icat="kitten icat"    # images in kitty, also inside byobu (allow-passthrough in profile.tmux)
+alias assume="source assume" # granted: sets AWS credentials in this shell, so it must be sourced
+alias sshs="sshs --color pink"   # SynthWave '84 borders: sshs only takes a Tailwind palette name
 
 # Python aliases
 alias ptpy="ptpython"

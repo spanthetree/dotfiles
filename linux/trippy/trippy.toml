@@ -1,0 +1,52 @@
+# trippy (`trip`): linked to ~/.config/trippy/trippy.toml. Only what differs from trippy's defaults; the full list
+# with comments: trip --print-config-template
+#
+# GeoIP (the map on `m`, locations per hop) isn't set here: trippy wants a full path with no `~`, and stops if the
+# file is missing. The `trip` function in linux/zsh/zshrc adds `-G` when the database is there (the installer gets
+# it from MaxMind: configure_geoip in linux/install.sh).
+
+[dns]
+# AS numbers and names per hop. The system resolver can't look them up, so DNS goes to Cloudflare.
+dns-resolve-method = "cloudflare"
+dns-lookup-as-info = true
+
+[tui]
+tui-address-mode = "both"   # IP and hostname
+tui-geoip-mode = "short"    # only shown when a GeoIP file is given
+
+# SynthWave '84: the palette of linux/kitty/theme.conf and the COSMIC theme. Hex without `#`.
+[theme-colors]
+bg-color = "262335"
+border-color = "495495"
+text-color = "B6B1C9"
+tab-text-color = "FF7EDB"
+hops-table-header-bg-color = "34294F"
+hops-table-header-text-color = "36F9F6"
+hops-table-row-active-text-color = "E0DFE6"
+hops-table-row-inactive-text-color = "848BBD"
+hops-chart-selected-color = "FF7EDB"
+hops-chart-unselected-color = "495495"
+hops-chart-axis-color = "848BBD"
+frequency-chart-bar-color = "36F9F6"
+frequency-chart-text-color = "B6B1C9"
+flows-chart-bar-selected-color = "FF7EDB"
+flows-chart-bar-unselected-color = "495495"
+flows-chart-text-current-color = "72F1B8"
+flows-chart-text-non-current-color = "B6B1C9"
+samples-chart-color = "FEDE5D"
+samples-chart-lost-color = "FE4450"
+help-dialog-bg-color = "34294F"
+help-dialog-text-color = "E0DFE6"
+settings-dialog-bg-color = "34294F"
+settings-tab-text-color = "FF7EDB"
+settings-table-header-text-color = "262335"
+settings-table-header-bg-color = "36F9F6"
+settings-table-row-text-color = "E0DFE6"
+map-world-color = "495495"
+map-radius-color = "FEDE5D"
+map-selected-color = "FF7EDB"
+map-info-panel-border-color = "495495"
+map-info-panel-bg-color = "262335"
+map-info-panel-text-color = "E0DFE6"
+info-bar-bg-color = "FF7EDB"
+info-bar-text-color = "262335"

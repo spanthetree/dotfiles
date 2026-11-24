@@ -1,0 +1,5 @@
+Some([
+    "com.github.cosmic-caffeine",
+    "com.system76.CosmicAppletTime",
+    "com.system76.CosmicAppletNotifications",
+])
