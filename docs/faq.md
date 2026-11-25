@@ -33,6 +33,18 @@ A failed step prints its last 20 lines. For everything, run it with `--no-fx`.
 **How do I add or remove a tool?**
 Edit [`packages.yaml`](../packages.yaml) and re-run `install.cmd`. See [packages](packages.md).
 
+**Does this machine still match the repo?**
+`install.cmd --check` lists what differs (links, packages a run would install or uninstall, settings) and changes nothing. A re-run of `install.cmd` fixes most of it.
+
+**How do I use another Python, Ruby or Go version?**
+They come from mise. `mise use -g python@3.13` changes the global one; in a project, `mise use python@3.11` (writes `mise.toml`), or a `.python-version` / `.ruby-version` file. `mise ls` shows what's installed. pyenv and rbenv are no longer used.
+
+**Why wasn't Beeper installed?**
+Before installing it, the installer looks for software that can read the machine's files or record its screen (endpoint security, DLP, screen monitoring, as on many work machines). If it finds some, it names it and asks; no, `--yes` and a run with no terminal all mean it isn't installed. The answer is remembered until what's found changes. See [packages](packages.md).
+
+**My commit was stopped by a "privacy check".**
+This repo is public, so its pre-commit hook stops commits that add secrets, email addresses, or anything matching your own patterns in `~/.config/dotfiles/private-patterns`. Fix the lines it shows; if they're fine, `git commit --no-verify`. See [development](development.md#privacy-check-before-commits).
+
 **Where do my own settings and secrets go?**
 `~/.zshrc.local` for machine-only settings, `~/.zsh_secrets.gpg` for tokens. Neither is committed. See [install](install.md#per-machine-files-never-committed).
 
@@ -46,7 +58,7 @@ Byobu takes some keys first. See [hotkeys: clashes](hotkeys.md#clashes).
 Byobu binds it to save tabs. vim, nano and Claude Code still get it.
 
 **I see boxes instead of icons.**
-Your terminal needs a Nerd Font. The Windows installer installs JetBrainsMono Nerd Font and Windows Terminal uses it. On a Linux desktop the installer adds JetBrainsMono and FantasqueSansM Nerd Fonts, and kitty uses Departure Mono. Elsewhere, install one from https://www.nerdfonts.com and select it in your terminal.
+Your terminal needs a Nerd Font. The Windows installer installs JetBrainsMono Nerd Font and Windows Terminal uses it. On a Linux desktop the installer adds the JetBrainsMono, FantasqueSansM, Departure Mono and Terminess Nerd Fonts, and kitty uses Departure Mono. Elsewhere, install one from https://www.nerdfonts.com and select it in your terminal.
 
 **Can I contribute?**
 Only verified bug fixes and interface improvements. For anything else, fork it. See the [README](../README.md#contributing).

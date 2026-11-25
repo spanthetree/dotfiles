@@ -38,8 +38,8 @@ New machine, options, and how to uninstall: see [install](docs/install.md).
 | [Software](docs/software.md) | everything installed, with links |
 | [Packages](docs/packages.md) | `packages.yaml`: adding, removing, updating, what's included |
 | [Layout](docs/layout.md) | what each file in the repo is and where it is linked |
-| [FAQ](docs/faq.md) | common questions: undo, native Linux, WSL vs Windows, keys, fonts |
-| [Development](docs/development.md) | versioning and checks |
+| [FAQ](docs/faq.md) | common questions: undo, native Linux, WSL vs Windows, checking a machine, language versions, Beeper, keys, fonts |
+| [Development](docs/development.md) | versioning, checks and CI, the privacy check before commits |
 | [Changelog](CHANGELOG.md) | every release |
 
 ## Contributing

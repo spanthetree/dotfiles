@@ -22,21 +22,31 @@
 #            hyprland: the same for the Hyprland desktop setup (install.cmd --hyprland / --no-hyprland)
 #            in-hyprland: the Hyprland layer (plugins, panel, switcher...): only on a run from inside a Hyprland
 #            session, or where the Hyprland desktop is chosen. Elsewhere skipped, neither installed, updated nor removed
+#   private: <what the app keeps, as a sentence>: for apps holding private data (e.g. chats). Before installing it,
+#            linux/monitoring-check looks for software that can read this machine's files or record its screen
+#            (endpoint security, DLP, screen monitoring). Nothing found: installed as usual. Found: it says what and asks
+#            (default no; --yes and no terminal mean no). The answer is kept until the findings change
+#            (~/.local/state/dotfiles/private.json). Script and github entries only
 #   interactive: true runs script/update/post/uninstall in the terminal, without the spinner, so a prompt
 #            the step can't avoid (e.g. a tool that runs sudo itself and asks again) is seen and answered
-#   tools:   (go, pyenv, rbenv, krew entries only) tools installed with that language's own installer, after it.
+#   tools:   (go, uv, ruby, krew entries only) tools installed with that language's own installer, after it.
 #            Each is a name, or {name, version}. Removing a line uninstalls that tool.
 #              go:    go install <module path>@<version, default latest>   -> ~/go/bin
-#              pyenv: uv tool install <name><version, e.g. '>=24'>         -> ~/.local/bin, isolated env per tool
-#              rbenv: gem install <name> -v <version, e.g. '~> 8.0'>      -> rbenv's global Ruby
+#              uv:    uv tool install <name><version, e.g. '>=24'>         -> ~/.local/bin, isolated env per tool
+#              ruby:  gem install <name> -v <version, e.g. '~> 8.0'>      -> mise's global Ruby
 #              krew:  kubectl krew install <name> (no version)            -> ~/.krew, as `kubectl <name>`
 #   Shell steps run in bash, with $DOT set to this repo. For apt packages a step needs, use "$DOT/linux/apt-deps"
 #   install|remove (and `own` after installing a release .deb), never apt-get install/remove: see that file
 #   uninstall: shell that removes it (default: apt remove for apt, delete ~/.local/bin/<name> for github;
 #            script installs without one are only warned about). An entry's apt `repo` goes with it.
 # Placeholders in asset/file: {tag} v1.2.3, {version} 1.2.3, {arch} amd64/arm64,
-#   {m} x86_64/aarch64, {xarch} x86_64/arm64
-# Windows keys: id; font: font file prefix (a hand-installed font isn't listed by winget).
+#   {m} x86_64/aarch64, {xarch} x86_64/arm64, {x64} x64/arm64
+# Windows keys: id; font: font file prefix (a hand-installed font isn't listed by winget); private: as above, checked
+#   by windows/monitoring-check.ps1 (answers in %LOCALAPPDATA%\dotfiles\private.json, shared by install.ps1 and WSL).
+#
+# Layout: both lists are grouped by what each tool is for, under banner comments; every entry says what it's for.
+# Order matters in the linux list: an entry comes after what it needs (mise before python, uv before suzieq, a
+# desktop before its layer), and uninstalls run in reverse.
 #
 # Removing: delete the entry and re-run. The installer uninstalls it (after asking) if it installed it on this
 # machine. `install.sh --adopt` once treats everything already installed from this list as its own.
@@ -46,34 +56,56 @@ settings:
   upgrade: true      # each run also `apt-get upgrade`s the whole system (GitHub binaries update to their latest release regardless)
 
 linux:
-  # base
-  - git
-  - curl
-  - ca-certificates
-  - gnupg
-  - gpg
-  - openssl
-  - unzip
-  - xclip
+  # ================================================================================================================
+  # Base system
+  # Needed by the installer and almost everything else.
+  # ================================================================================================================
+  - git                        # version control
+  - curl                       # HTTP downloads (the installer uses it)
+  - ca-certificates            # TLS root certificates
+  - gnupg                      # OpenPGP: apt repo keys, ~/.zsh_secrets.gpg
+  - gpg                        # the gpg command
+  - openssl                    # TLS and certificates CLI
+  - unzip                      # .zip archives
+  - xclip                      # clipboard from the terminal (X11/XWayland)
 
-  # shell and editor
-  - zsh
-  - byobu
-  - tmux
-  - vim
-  - name: fzf    # from its release, not apt (Ubuntu 24.04's is 0.44); shell keys from `fzf --zsh` in zshrc
+  # ================================================================================================================
+  # Shell and terminal
+  # zsh, byobu (tmux), the prompt, completions, history and navigation.
+  # ================================================================================================================
+  - zsh                        # the shell (config: linux/zsh)
+  - byobu                      # tmux with tabs and status rows: the terminal workspace (linux/byobu)
+  - tmux                       # byobu's backend
+  - vim                        # editor (linux/vim)
+
+  - name: starship             # the prompt (linux/starship)
+    script: curl -fsSL https://starship.rs/install.sh | sh -s -- -y -b ~/.local/bin >/dev/null
+    uninstall: rm -f ~/.local/bin/starship
+
+  - name: fzf                  # from its release, not apt (Ubuntu 24.04's is 0.44); shell keys from `fzf --zsh` in zshrc
     github: junegunn/fzf
     asset: fzf-{version}-linux_{arch}.tar.gz
     # ours even where apt's is. apt's /usr/bin/fzf comes first on PATH: the installer removes it where it installed
     # it (an older `- fzf` line); one installed some other way stays until `sudo apt remove fzf`
     skip_if: test -x ~/.local/bin/fzf
-  - ripgrep
-  - fd-find
-  - zoxide
-  - eza
-  - bat
-  - direnv
-  - btop
+
+  - name: carapace             # completions for commands zsh has none for (zshrc: zsh's own, e.g. git's or ssh's, win)
+    github: carapace-sh/carapace-bin
+    asset: carapace-bin_{version}_linux_{arch}.tar.gz
+
+  - name: navi                 # cheatsheet picker: Ctrl-G in zsh (zshrc). Cheats: denisidoro/cheats, plus your own .cheat files
+    github: denisidoro/navi
+    asset: navi-{tag}-{m}-unknown-linux-musl.tar.gz
+    file: ./navi
+    # a clone, not `navi repo add` (2.24 fails copying its own temp dir); pulled on each run
+    post: >-
+      d=~/.local/share/navi/cheats/denisidoro__cheats;
+      if [ -d "$d/.git" ]; then git -C "$d" pull -q --ff-only; else git clone -q --depth 1 https://github.com/denisidoro/cheats "$d"; fi
+    uninstall: rm -rf ~/.local/bin/navi ~/.local/share/navi/cheats/denisidoro__cheats
+
+  - zoxide                     # cd that learns your folders (z)
+  - direnv                     # per-folder env from .envrc
+
   # tealdeer (`tldr`): from its release, not apt: Ubuntu 24.04's 1.6 downloads its pages from a URL that's gone.
   # Config in linux/tealdeer (SynthWave colours; refreshes its pages weekly by itself). apt's /usr/bin/tldr comes first
   # on PATH: the installer removes it where it installed it (an older `- tealdeer` line)
@@ -83,94 +115,595 @@ linux:
     skip_if: test -x ~/.local/bin/tldr
     post: ~/.local/bin/tldr --quiet --update   # its pages: fetched on the first run, current on each one after
     uninstall: rm -rf ~/.local/bin/tldr ~/.cache/tealdeer
-  - name: starship
-    script: curl -fsSL https://starship.rs/install.sh | sh -s -- -y -b ~/.local/bin >/dev/null
-    uninstall: rm -f ~/.local/bin/starship
-  - name: carapace   # completions for ~1000 commands (zshrc; a tool's own completion, e.g. kubectl's, still wins)
-    github: carapace-sh/carapace-bin
-    asset: carapace-bin_{version}_linux_{arch}.tar.gz
-  - name: navi       # cheatsheet picker: Ctrl-G in zsh (zshrc). Cheats: denisidoro/cheats, plus your own .cheat files
-    github: denisidoro/navi
-    asset: navi-{tag}-{m}-unknown-linux-musl.tar.gz
-    file: ./navi
-    # a clone, not `navi repo add` (2.24 fails copying its own temp dir); pulled on each run
-    post: >-
-      d=~/.local/share/navi/cheats/denisidoro__cheats;
-      if [ -d "$d/.git" ]; then git -C "$d" pull -q --ff-only; else git clone -q --depth 1 https://github.com/denisidoro/cheats "$d"; fi
-    uninstall: rm -rf ~/.local/bin/navi ~/.local/share/navi/cheats/denisidoro__cheats
-  - name: mise       # per-project tool versions (mise.toml, .tool-versions); activated in zshrc after pyenv/rbenv/nvm
-    script: curl -fsSL https://mise.run | MISE_INSTALL_PATH=~/.local/bin/mise sh >/dev/null
-    update: ~/.local/bin/mise self-update -y >/dev/null
-    # the tools and runtimes it installed too (your ~/.config/mise stays)
-    uninstall: rm -rf ~/.local/bin/mise ~/.local/share/mise ~/.local/state/mise ~/.cache/mise
+
   # tmux hint-mode copy (linux/byobu/profile.tmux): F12 F labels URLs, paths, IPs, hashes on screen; type the label to
   # copy. Loads from its binary alone (tmux-fingers load-config), no plugin clone
   - name: tmux-fingers
     github: Morantron/tmux-fingers
     asset: tmux-fingers-{version}-linux-{m}
-  - name: kitten     # kitty's helper: `icat` alias shows images in kitty (also inside byobu). Comes with kitty on a desktop
+
+  - name: kitten               # kitty's helper: `icat` alias shows images in kitty (also inside byobu). Comes with kitty on a desktop
     github: kovidgoyal/kitty
     asset: kitten-linux-{arch}
 
-  # modern replacements for classic tools (old one in the comment)
-  - duf          # df
-  - gdu          # ncdu, faster
-  - sd           # sed find/replace
-  - hexyl        # xxd/hexdump
-  - hyperfine    # time, benchmarking
-  - just         # make, as a task runner
-  - name: dust   # du
+  # ================================================================================================================
+  # Files, search and system
+  # Modern replacements for classic tools (the classic one is in the comment).
+  # ================================================================================================================
+  - ripgrep                    # grep, faster (rg)
+  - fd-find                    # find, simpler (fd)
+  - eza                        # ls with icons and git status
+  - bat                        # cat with syntax highlighting
+  - duf                        # df
+  - gdu                        # ncdu, faster
+
+  - name: dust                 # du
     github: bootandy/dust
     asset: dust-{tag}-{m}-unknown-linux-musl.tar.gz
     file: dust-{tag}-{m}-unknown-linux-musl/dust
-  - name: yazi   # file manager
+
+  - name: procs                # ps
+    github: dalance/procs
+    asset: procs-{tag}-{m}-linux.zip
+
+  - btop                       # top, with graphs
+
+  - name: viddy                # watch
+    github: sachaos/viddy
+    asset: viddy-{tag}-linux-{m}.tar.gz
+
+  - name: yazi                 # file manager
     github: sxyazi/yazi
     asset: yazi-{m}-unknown-linux-musl.zip
     file: yazi-{m}-unknown-linux-musl/yazi
-  - name: broot  # tree/cd navigator
+
+  - name: broot                # tree/cd navigator
     github: Canop/broot
     asset: broot_{version}.zip
     file: '{m}-unknown-linux-musl/broot'
-  - name: ouch   # tar/zip/unzip
+
+  - name: ouch                 # tar/zip/unzip
     github: ouch-org/ouch
     asset: ouch-{m}-unknown-linux-musl.tar.gz
     file: ouch-{m}-unknown-linux-musl/ouch
-  - name: choose # cut / awk '{print $2}'
+
+  - sd                         # sed find/replace
+
+  - name: choose               # cut / awk '{print $2}'
     github: theryangeary/choose
     asset: choose-{m}-unknown-linux-musl
-  - name: fx     # JSON viewer
-    github: antonmedv/fx
-    asset: fx_linux_{arch}
-  - name: difft  # difftastic: structural diff
-    github: Wilfred/difftastic
-    asset: difft-{version}-{m}-unknown-linux-musl.tar.gz
-  - name: procs  # ps
-    github: dalance/procs
-    asset: procs-{tag}-{m}-linux.zip
-  - name: viddy  # watch
-    github: sachaos/viddy
-    asset: viddy-{tag}-linux-{m}.tar.gz
-  - name: watchexec # rerun on file change
-    github: watchexec/watchexec
-    asset: watchexec-{version}-{m}-unknown-linux-gnu.tar.xz
-    file: watchexec-{version}-{m}-unknown-linux-gnu/watchexec
-  - name: scc    # cloc/tokei (tokei has no recent release binaries)
-    github: boyter/scc
-    asset: scc_Linux_{xarch}.tar.gz
-  - name: jaq    # jq, faster (same filters)
+
+  - hexyl                      # xxd/hexdump
+
+  # ================================================================================================================
+  # Data and logs
+  # Query, reshape and view JSON, YAML, CSV and logs.
+  # ================================================================================================================
+  - jq                         # JSON query
+  - yq                         # YAML/JSON/XML query, jq syntax
+
+  - name: jaq                  # jq, faster (same filters)
     github: 01mf02/jaq
     asset: jaq-{m}-unknown-linux-musl
-  - gron         # JSON to greppable lines (gron -u back)
-  - jc           # command output (ifconfig, dig, netstat...) to JSON: `dig x | jc --dig`
-  - lnav         # log viewer: merges, filters, SQL over logs
-  - visidata     # vd: spreadsheet TUI for CSV/JSON/SQLite/...
-  - name: rare   # histograms, tables, sums from log lines (regex/dissect)
+
+  - name: fx                   # JSON viewer
+    github: antonmedv/fx
+    asset: fx_linux_{arch}
+
+  - gron                       # JSON to greppable lines (gron -u back)
+  - jc                         # command output (ifconfig, dig, netstat...) to JSON: `dig x | jc --dig`
+  - lnav                       # log viewer: merges, filters, SQL over logs
+  - visidata                   # vd: spreadsheet TUI for CSV/JSON/SQLite/...
+
+  - name: rare                 # histograms, tables, sums from log lines (regex/dissect)
     github: zix99/rare
     asset: rare_{version}_Linux_{xarch}.tar.gz
 
-  - name: fontconfig   # fc-cache, for the fonts below
+  # ================================================================================================================
+  # Languages and runtimes
+  # Python and Ruby versions come from mise, prebuilt (no compiling). Each run adds the newest patch release of each
+  # (older ones stay until `mise prune`), and sets the global one only while there is none: yours stays. Global in
+  # ~/.config/mise/config.toml; per project from mise.toml, .tool-versions, .python-version or .ruby-version.
+  # The build deps below are for versions with no prebuilt build, and for packages with native extensions.
+  # Order matters: mise before the python, ruby and go entries; uv before the tools that install with it.
+  # ================================================================================================================
+  - name: mise                 # Python, Ruby and Go versions (their entries below), per project too; activated in zshrc
+    script: curl -fsSL https://mise.run | MISE_INSTALL_PATH=~/.local/bin/mise sh >/dev/null
+    update: ~/.local/bin/mise self-update -y >/dev/null
+    # the tools and runtimes it installed too (your ~/.config/mise stays)
+    uninstall: rm -rf ~/.local/bin/mise ~/.local/share/mise ~/.local/state/mise ~/.cache/mise
+
+  # --- Python
+  - python3                    # the system Python (the installer's)
+  - python3-yaml               # PyYAML for it (packages.py reads this file)
+  - virtualenvwrapper          # mkvirtualenv / workon
+  - build-essential            # compilers, make
+  - libssl-dev                 # OpenSSL headers
+  - zlib1g-dev                 # zlib headers
+  - libbz2-dev                 # bzip2 headers
+  - libreadline-dev            # readline headers
+  - libsqlite3-dev             # SQLite headers
+  - libncurses-dev             # curses headers
+  - xz-utils                   # xz
+  - tk-dev                     # Tk headers (tkinter)
+  - libxml2-dev                # libxml2 headers
+  - libxmlsec1-dev             # xmlsec headers
+  - libffi-dev                 # libffi headers (ctypes)
+  - liblzma-dev                # lzma headers
+
+  - name: python               # 3.11, 3.12 (global unless you picked one) and 3.14
+    skip_if: test -n "$(~/.local/bin/mise ls --installed python 2>/dev/null)"
+    script: &mise-python |
+      m=~/.local/bin/mise
+      for s in 3.11 3.12 3.14; do
+        v=$("$m" latest python@$s) && [ -n "$v" ] || { echo "no Python $s release found"; continue; }
+        "$m" where python@$v >/dev/null 2>&1 || { echo "python $v"; "$m" install -q python@$v; }
+      done
+      "$m" config get -f ~/.config/mise/config.toml tools.python >/dev/null 2>&1 || "$m" use -q -g python@3.12
+    update: *mise-python
+    # every mise Python, and the global one
+    uninstall: m=~/.local/bin/mise; "$m" unuse -q -g --no-prune python; "$m" uninstall -q --all python
+
+  - name: uv                   # Python packages, venvs and tools, fast (uv tool install)
+    script: curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh >/dev/null
+    uninstall: rm -f ~/.local/bin/uv ~/.local/bin/uvx
+    tools:
+      - ptpython   # nicer Python REPLs (aliases ptpy, bpy in linux/zsh/zsh_aliases)
+      - bpython
+      - httpstat   # curl with a timing breakdown: DNS, connect, TLS, server, transfer
+
+  # --- Ruby
+  # ruby build deps (for versions with no prebuilt build, and gems with native extensions)
+  - autoconf
+
+  - patch                      # patch
+  - libyaml-dev                # libyaml headers
+  - libgmp-dev                 # GMP headers (big numbers)
+  - libgdbm-dev                # gdbm headers
+  - uuid-dev                   # uuid headers
+
+  - name: ruby                 # 3.2 (EOL 2026-03), 3.4 (global unless you picked one) and 4.0
+    skip_if: test -n "$(~/.local/bin/mise ls --installed ruby 2>/dev/null)"
+    script: &mise-ruby |
+      m=~/.local/bin/mise
+      for s in 3.2 3.4 4.0; do
+        v=$("$m" latest ruby@$s) && [ -n "$v" ] || { echo "no Ruby $s release found"; continue; }
+        "$m" where ruby@$v >/dev/null 2>&1 || { echo "ruby $v"; "$m" install -q ruby@$v; }
+      done
+      "$m" config get -f ~/.config/mise/config.toml tools.ruby >/dev/null 2>&1 || "$m" use -q -g ruby@3.4
+    update: *mise-ruby
+    # every mise Ruby with its gems, and the global one
+    uninstall: m=~/.local/bin/mise; "$m" unuse -q -g --no-prune ruby; "$m" uninstall -q --all ruby
+
+  # --- Go, Rust, Node
+  # go: from mise, the latest release added on each run (global `latest` unless you picked one; older ones stay until
+  # `mise prune`). Toolchains per project also come from go.mod's `toolchain` line (Go downloads them itself).
+  # GOPATH stays ~/go: `go install` tools land in ~/go/bin
+  - name: go
+    skip_if: test -n "$(~/.local/bin/mise ls --installed go 2>/dev/null)"
+    script: &mise-go |
+      m=~/.local/bin/mise
+      v=$("$m" latest go) && [ -n "$v" ] || { echo "no Go release found"; exit 1; }
+      "$m" where go@$v >/dev/null 2>&1 || { echo "go $v"; "$m" install -q go@$v; }
+      "$m" config get -f ~/.config/mise/config.toml tools.go >/dev/null 2>&1 || "$m" use -q -g go@latest
+    update: *mise-go
+    # every mise Go, and the global one (~/go and its tools stay)
+    uninstall: m=~/.local/bin/mise; "$m" unuse -q -g --no-prune go; "$m" uninstall -q --all go
+    tools:
+      - golang.org/x/tools/gopls   # Go language server for vim-go and VS Code's Go extension
+
+  # rust: rustup with the stable toolchain (rustc, cargo, clippy, rustfmt, rust-analyzer), updated each run.
+  # In ~/.rustup and ~/.cargo (zshenv puts ~/.cargo/bin on PATH). Its uninstall deletes ~/.cargo, with anything
+  # `cargo install` put there
+  - name: rustup
+    skip_if: test -x ~/.cargo/bin/rustup
+    script: |
+      curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y -q --no-modify-path --profile default >/dev/null 2>&1
+      ~/.cargo/bin/rustup component add rust-analyzer >/dev/null 2>&1 || true
+    update: ~/.cargo/bin/rustup update >/dev/null 2>&1
+    uninstall: ~/.cargo/bin/rustup self uninstall -y
+
+  - name: nvm                  # Node versions (nvm use)
+    skip_if: test -d ~/.nvm
+    script: |
+      git clone -q https://github.com/nvm-sh/nvm.git ~/.nvm
+      git -C ~/.nvm -c advice.detachedHead=false checkout -q "$(git -C ~/.nvm describe --abbrev=0 --tags --match 'v[0-9]*' "$(git -C ~/.nvm rev-list --tags --max-count=1)")"
+    uninstall: rm -rf ~/.nvm
+
+  # ================================================================================================================
+  # Dev tools
+  # git, building and testing, APIs and databases, secrets.
+  # ================================================================================================================
+  # --- git
+  - gh                         # GitHub CLI
+  - git-delta                  # git's diff pager, with syntax highlighting (delta)
+
+  - name: lazygit              # git TUI
+    github: jesseduffield/lazygit
+    asset: lazygit_{version}_linux_{xarch}.tar.gz
+
+  - name: difft                # difftastic: structural diff
+    github: Wilfred/difftastic
+    asset: difft-{version}-{m}-unknown-linux-musl.tar.gz
+
+  - name: gitleaks             # finds secrets (tokens, keys) in git changes; this repo's pre-commit hook (.githooks) runs it
+    github: gitleaks/gitleaks
+    asset: gitleaks_{version}_linux_{x64}.tar.gz
+
+  # --- build, test, measure
+  - shellcheck                 # shell script linter
+  - just                       # make, as a task runner
+
+  - name: watchexec            # rerun on file change
+    github: watchexec/watchexec
+    asset: watchexec-{version}-{m}-unknown-linux-gnu.tar.xz
+    file: watchexec-{version}-{m}-unknown-linux-gnu/watchexec
+
+  - hyperfine                  # time, benchmarking
+
+  - name: scc                  # cloc/tokei (tokei has no recent release binaries)
+    github: boyter/scc
+    asset: scc_Linux_{xarch}.tar.gz
+
+  - name: d2                   # diagrams from text: `d2 -w in.d2 out.svg` (live preview)
+    github: terrastruct/d2
+    asset: d2-{tag}-linux-{arch}.tar.gz
+    file: d2-{tag}/bin/d2
+
+  # --- APIs and databases
+  - name: grpcurl              # curl for gRPC
+    github: fullstorydev/grpcurl
+    asset: grpcurl_{version}_linux_{xarch}.tar.gz
+
+  - name: websocat             # netcat for WebSockets
+    github: vi/websocat
+    asset: websocat.{m}-unknown-linux-musl
+
+  - name: usql                 # one SQL CLI for Postgres, MySQL, SQLite, MSSQL, Oracle... (static build: every driver)
+    github: xo/usql
+    asset: usql_static-{version}-linux-{arch}.tar.bz2
+    file: usql_static
+
+  - kcat                       # Kafka producer/consumer/metadata
+
+  # --- secrets and certificates
+  - name: sops                 # encrypted secrets in YAML/JSON/env files; with age keys (~/.config/sops/age/keys.txt, per machine)
+    github: getsops/sops
+    asset: sops-{tag}.linux.{arch}
+
+  - age                        # file encryption, sops' key type
+
+  - name: step                 # smallstep CLI: certificates, CSRs, inspect TLS (`step certificate inspect https://host`), JWTs
+    github: smallstep/cli
+    asset: step_linux_{version}_{arch}.tar.gz
+    file: step_{version}/bin/step
+
+  # ================================================================================================================
+  # Containers and Kubernetes
+  # ================================================================================================================
+  # Ubuntu's Docker; skipped when Docker CE/Desktop already provides docker (the packages conflict)
+  - name: docker.io
+    skip_if: &other-docker command -v docker >/dev/null && ! dpkg -s docker.io >/dev/null 2>&1
+    post: id -nG | grep -qw docker || sudo usermod -aG docker "$USER"   # no sudo for docker (next login)
+
+  - name: docker-compose-v2    # docker compose
+    skip_if: *other-docker
+
+  - name: docker-buildx        # docker buildx: multi-platform builds
+    skip_if: *other-docker
+
+  - name: kubectl              # Kubernetes CLI
+    script: |
+      curl -fsSLo ~/.local/bin/kubectl "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release/stable.txt)/bin/linux/$(dpkg --print-architecture)/kubectl"
+      chmod +x ~/.local/bin/kubectl
+    uninstall: rm -f ~/.local/bin/kubectl
+
+  # krew: kubectl plugins, in ~/.krew (its bin is on PATH in zshenv). Each tool is `kubectl <name>`
+  - name: krew
+    skip_if: test -x ~/.krew/bin/kubectl-krew
+    script: |
+      set -e
+      tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+      a=$(dpkg --print-architecture)
+      curl -fsSL "https://github.com/kubernetes-sigs/krew/releases/latest/download/krew-linux_$a.tar.gz" | tar -xz -C "$tmp"
+      "$tmp/krew-linux_$a" install krew >/dev/null
+    update: ~/.krew/bin/kubectl-krew update >/dev/null && ~/.krew/bin/kubectl-krew upgrade >/dev/null   # index, then krew and its plugins
+    uninstall: rm -rf ~/.krew
+    tools:
+      - neat          # kubectl neat: manifests without status and managed fields
+      - tree          # kubectl tree: what owns what
+      - view-secret   # kubectl view-secret: decoded secrets
+      - node-shell    # kubectl node-shell: root shell on a node
+      - df-pv         # kubectl df-pv: PV usage
+      - who-can       # kubectl who-can: RBAC, who may do a verb on a resource
+
+  - kubectx                    # switch kube contexts and namespaces (kubectx, kubens)
+
+  - name: k9s                  # Kubernetes TUI
+    github: derailed/k9s
+    asset: k9s_Linux_{arch}.tar.gz
+
+  - name: stern                # logs from many pods at once
+    github: stern/stern
+    asset: stern_{version}_linux_{arch}.tar.gz
+
+  - name: kubeshark            # API traffic viewer for a cluster (deploys its agents into it)
+    github: kubeshark/kubeshark
+    asset: kubeshark_linux_{arch}
+
+  - name: helm                 # Kubernetes package manager
+    skip_if: test -x ~/.local/bin/helm   # ours, even where an older helm exists (it can't load helm-diff's current plugin.yaml)
+    script: curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | HELM_INSTALL_DIR=~/.local/bin USE_SUDO=false bash >/dev/null
+    uninstall: rm -f ~/.local/bin/helm
+
+  - name: helm-diff            # helm diff upgrade: what an upgrade would change (helmfile uses it too)
+    skip_if: ~/.local/bin/helm plugin list 2>/dev/null | grep -q '^diff'
+    script: mkdir -p "$(~/.local/bin/helm env HELM_PLUGINS)" && ~/.local/bin/helm plugin install https://github.com/databus23/helm-diff >/dev/null
+    update: ~/.local/bin/helm plugin update diff >/dev/null
+    uninstall: ~/.local/bin/helm plugin uninstall diff >/dev/null
+
+  - name: helmfile             # helm releases, declared in a file
+    github: helmfile/helmfile
+    asset: helmfile_{version}_linux_{arch}.tar.gz
+
+  - name: kind                 # throwaway local clusters: upstream Kubernetes in Docker (kind create cluster); also a containerlab node kind
+    github: kubernetes-sigs/kind
+    asset: kind-linux-{arch}
+
+  # containerlab: network labs (SR Linux, cEOS, FRR, Linux...) as containers, wired from a topology file. Its .deb
+  # from the release (its apt repo is unsigned, trusted=yes). Router images are pulled per lab; some (cEOS) need a
+  # vendor login. The package makes the clab_admins group: you're added, so it runs without sudo (next login)
+  - name: containerlab
+    skip_if: dpkg -s containerlab >/dev/null 2>&1
+    script: &containerlab |   # also its update: a no-op when it's the latest release
+      set -e
+      tag=$(curl -fsSLo /dev/null -w '%{url_effective}' https://github.com/srl-labs/containerlab/releases/latest | sed 's|.*/||')
+      [ "$(dpkg-query -W -f='${Version}' containerlab 2>/dev/null)" = "${tag#v}" ] && exit 0
+      tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT; chmod 755 "$tmp"   # apt's _apt user reads the .deb
+      curl -fsSLo "$tmp/clab.deb" "https://github.com/srl-labs/containerlab/releases/download/$tag/containerlab_${tag#v}_linux_$(dpkg --print-architecture).deb"
+      sudo apt-get install -y -qq "$tmp/clab.deb"
+      "$DOT/linux/apt-deps" own containerlab
+    update: *containerlab
+    post: "! getent group clab_admins >/dev/null || id -nG \"$USER\" | grep -qw clab_admins || sudo usermod -aG clab_admins \"$USER\""
+    uninstall: |   # out of clab_admins too (the group goes with the package)
+      ! id -nG "$USER" | grep -qw clab_admins || sudo gpasswd -d "$USER" clab_admins >/dev/null
+      "$DOT/linux/apt-deps" remove containerlab
+
+  # ================================================================================================================
+  # Cloud and infrastructure as code
+  # ================================================================================================================
+  - name: aws                  # AWS CLI v2
+    script: |
+      tmp=$(mktemp -d)
+      curl -fsSLo "$tmp/aws.zip" "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip"
+      unzip -q "$tmp/aws.zip" -d "$tmp"
+      "$tmp/aws/install" -i ~/.local/share/aws-cli -b ~/.local/bin >/dev/null
+      command rm -rf "$tmp"
+    uninstall: rm -rf ~/.local/share/aws-cli ~/.local/bin/aws ~/.local/bin/aws_completer
+
+  - name: granted              # AWS profile switching: `assume <profile>` (alias in zsh_aliases), `granted console`
+    github: common-fate/granted
+    asset: granted_{version}_linux_{xarch}.tar.gz
+    extra: [assume, assumego]
+
+  # tenv: terraform, OpenTofu and Terragrunt versions per project (.terraform-version, required_version), through
+  # its proxies `terraform`, `tofu`, `terragrunt`; each version downloads on first use (latest when unpinned)
+  - name: tenv
+    github: tofuutils/tenv
+    asset: tenv_{tag}_Linux_{xarch}.tar.gz
+    extra: [terraform, tofu, terragrunt]
+    skip_if: test -x ~/.local/bin/tenv
+
+  - name: tflint               # Terraform linter
+    github: terraform-linters/tflint
+    asset: tflint_linux_{arch}.zip
+
+  - name: terraform-docs       # docs from Terraform modules
+    github: terraform-docs/terraform-docs
+    asset: terraform-docs-{tag}-linux-{arch}.tar.gz
+
+  - name: infracost            # cost estimate of a terraform plan (`infracost auth login` once, per machine)
+    github: infracost/infracost
+    asset: infracost-linux-{arch}.tar.gz
+    file: infracost-linux-{arch}
+
+  - name: steampipe            # SQL over cloud APIs: `steampipe plugin install aws kubernetes net`, then `steampipe query`
+    github: turbot/steampipe
+    asset: steampipe_linux_{arch}.tar.gz
+
+  - ansible                    # configuration management and network automation
+
+  # ================================================================================================================
+  # Network
+  # After the languages: SuzieQ and TTP install with uv.
+  # ================================================================================================================
+  # --- path, latency, bandwidth
+  - mtr-tiny                   # traceroute + ping (mtr; `mtrr` report alias)
+  - libcap2-bin                # setcap for trip
+
+  - name: trip                 # trippy: mtr/traceroute with AS names and a map; config in linux/trippy, `trip` function in zshrc
+    github: fujiapple852/trippy
+    asset: trippy-{version}-{m}-unknown-linux-musl.tar.gz
+    file: trippy-{version}-{m}-unknown-linux-musl/trip
+    skip_if: test -x ~/.local/bin/trip   # ours, even where another trip (e.g. cargo's) is on PATH
+    # raw sockets without sudo; the cap is lost when the binary is replaced, so check each run
+    post: getcap ~/.local/bin/trip | grep -q cap_net_raw || sudo setcap cap_net_raw+ep ~/.local/bin/trip
+
+  - geoipupdate                # MaxMind's GeoLite2 City for trip's map; the installer asks for a free license key once
+  - gping                      # ping, graphed
+  - fping                      # ping many hosts / a subnet at once (fping -g 10.0.0.0/24)
+  - hping3                     # crafted TCP/UDP/ICMP probes
+  - scamper                    # bulk traceroute/ping measurement
+  - iperf3                     # bandwidth tests
+
+  # --- DNS, addressing, routing data
+  - bind9-dnsutils             # dig, nslookup
+
+  - name: doggo                # dig
+    github: mr-karan/doggo
+    asset: doggo-linux-{m}.tar.gz
+
+  - whois                      # whois lookups
+  - ipcalc                     # subnet calculator
+  - grepcidr                   # grep lines by IP in CIDRs
+
+  - name: mapcidr              # CIDR maths: split, aggregate, count, expand
+    github: projectdiscovery/mapcidr
+    asset: mapcidr_{version}_linux_{arch}.zip
+
+  - asn                        # AS, prefixes, peers, geolocation, reputation for an IP/ASN/domain; trace with AS names
+  - bgpq4                      # prefix and AS-path filters from IRR data
+
+  - name: monocle              # BGP: MRT parsing, search updates, RPKI, AS-to-name, as2rel
+    github: bgpkit/monocle
+    asset: monocle-{m}-unknown-linux-gnu.tar.gz
+
+  - name: globalping           # ping/traceroute/mtr/dig/http from probes worldwide (`globalping auth login` for higher limits)
+    github: jsdelivr/globalping-cli
+    asset: globalping_Linux_{xarch}.tar.gz
+
+  # --- scanning and discovery
+  - nmap                       # port scanner
+
+  - name: nmap-formatter       # nmap XML to HTML, CSV, Markdown, JSON, D2, Graphviz
+    github: vdjagilev/nmap-formatter
+    asset: nmap-formatter-linux-{arch}.tar.gz
+
+  - name: rustscan             # fast port discovery, then nmap on what's open. Its release is a tar.gz inside a zip
+    skip_if: test -x ~/.local/bin/rustscan
+    script: &rustscan |   # also its update: a no-op when it's the latest release
+      set -e
+      tag=$(curl -fsSLo /dev/null -w '%{url_effective}' https://github.com/bee-san/RustScan/releases/latest | sed 's|.*/||')
+      [ "$(~/.local/bin/rustscan --version 2>/dev/null)" = "rustscan ${tag#v}" ] && exit 0
+      tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+      curl -fsSLo "$tmp/r.zip" "https://github.com/bee-san/RustScan/releases/download/$tag/$(uname -m)-linux-rustscan.tar.gz.zip"
+      unzip -q "$tmp/r.zip" -d "$tmp" && tar -xzf "$tmp/$(uname -m)-linux-rustscan.tar.gz" -C "$tmp"
+      install -m 755 "$tmp/rustscan" ~/.local/bin/rustscan
+    update: *rustscan
+    uninstall: rm -f ~/.local/bin/rustscan
+
+  - arp-scan                   # who's on this LAN (sudo arp-scan -l)
+  - lldpd                      # LLDP/CDP neighbours: `lldpcli show neighbors` (runs as a service)
+
+  # --- capture and kernel
+  - tcpdump                    # packet capture
+  - tshark                     # Wireshark's CLI
+  - termshark                  # Wireshark-like TUI (on tshark)
+  - ngrep                      # grep for packets
+  - tcpflow                    # TCP streams to files
+
+  - name: rustnet              # network monitor TUI, connections per process. Its package sets the capabilities it needs
+    repo:
+      name: rustnet
+      key: https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x02E6E9053D5D53D9A85E142C2985E57C5DF10033
+      url: https://ppa.launchpadcontent.net/domcyrus/rustnet/ubuntu
+
+  - conntrack                  # conntrack-tools: netfilter connection table
+  - ethtool                    # NIC settings and counters
+  - socat                      # sockets and relays (netcat, more)
+  - pwru                       # which kernel function drops a packet (eBPF)
+  - bpftrace                   # eBPF one-liners
+  - bpfcc-tools                # BCC's tools: tcpconnect-bpfcc, tcplife-bpfcc, tcpretrans-bpfcc, execsnoop-bpfcc...
+
+  # --- HTTP
+  - name: xh                   # HTTP client, friendlier curl
+    github: ducaale/xh
+    asset: xh-{tag}-{m}-unknown-linux-musl.tar.gz
+    file: xh-{tag}-{m}-unknown-linux-musl/xh
+    post: '[ -e ~/.local/bin/ht ] || ln -s xh ~/.local/bin/ht'
+    uninstall: rm -f ~/.local/bin/xh ~/.local/bin/ht
+
+  - name: oha                  # HTTP load test with a live TUI
+    github: hatoo/oha
+    asset: oha-linux-{arch}
+
+  # --- automation and parsing
+  - name: gnmic                # gNMI client: get/set/subscribe on routers, switches
+    github: openconfig/gnmic
+    asset: gnmic_{version}_Linux_{m}.tar.gz
+
+  # SuzieQ: polls network devices over SSH into a queryable store (suzieq-cli, suzieq-gui). Not a `tools:` entry:
+  # it needs Python 3.10-3.11 and uvloop, which it doesn't declare. Config: linux/suzieq (configure_suzieq in
+  # linux/install.sh); sq-poller function in zshrc
+  - name: suzieq
+    skip_if: ~/.local/bin/uv tool list | grep -q '^suzieq ' && "$(~/.local/bin/uv tool dir)"/suzieq/bin/python -c ''
+    script: ~/.local/bin/uv tool install -q --reinstall --python '>=3.10,<3.12' suzieq --with uvloop
+    update: ~/.local/bin/uv tool upgrade -q suzieq
+    uninstall: ~/.local/bin/uv tool uninstall suzieq
+
+  # TTP (template-based parsing of CLI output) with ntc-templates (TextFSM templates for show commands) in its env.
+  # ntc-templates has no command: the `ntc` function in zshrc parses with it
+  - name: ttp
+    skip_if: ~/.local/bin/uv tool list | grep -q '^ttp ' && "$(~/.local/bin/uv tool dir)"/ttp/bin/python -c ''
+    script: ~/.local/bin/uv tool install -q --reinstall ttp --with ntc-templates
+    update: ~/.local/bin/uv tool upgrade -q ttp
+    uninstall: ~/.local/bin/uv tool uninstall ttp
+
+  # --- remote access
+  - autossh                    # ssh that reconnects by itself: tunnels and port forwards (-L/-R/-D) through flaky links or bastions
+
+  - name: sshs                 # pick a host from ~/.ssh/config; SynthWave colours via the alias in linux/zsh/zsh_aliases
+    github: quantumsheep/sshs
+    asset: sshs-linux-{arch}
+    skip_if: test -x ~/.local/bin/sshs   # ours, even where a .deb's /usr/bin/sshs exists
+
+  - name: termscp              # TUI file transfer: SFTP, SCP, FTP, S3, SMB, WebDAV; theme in linux/termscp
+    github: veeso/termscp
+    asset: termscp-{tag}-{m}-unknown-linux-musl.tar.gz
+    skip_if: test -x ~/.local/bin/termscp
+
+  # ================================================================================================================
+  # Notes and AI
+  # Desktop apps for these are in the Linux desktop section and the windows list.
+  # ================================================================================================================
+  # notes: Joplin. Markdown notes and to-dos, synced through Joplin Cloud, OneDrive, Dropbox, Nextcloud/WebDAV or S3
+  # (end-to-end encryption optional). Set the same sync target in each app: `joplin config sync.target` in the CLI.
+  # The terminal app (`joplin`) is an npm package: it gets its own Node LTS in ~/.local/share/joplin-cli (Ubuntu
+  # 24.04's Node 18 is too old for it, and nvm's versions come and go); Node needs libatomic1
+  - libatomic1
+
+  - name: joplin               # the terminal app (`joplin`)
+    skip_if: test -x ~/.local/share/joplin-cli/bin/joplin
+    script: &joplin-cli |   # also its update: Node and Joplin are only fetched when newer
+      set -e
+      d=~/.local/share/joplin-cli
+      v=$(curl -fsSL https://nodejs.org/dist/index.json | python3 -c 'import json, sys; print(next(r["version"] for r in json.load(sys.stdin) if r["lts"]))')
+      a=$(dpkg --print-architecture | sed 's/amd64/x64/')
+      if [ "$("$d/node/bin/node" --version 2>/dev/null)" != "$v" ]; then
+        tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+        curl -fsSL "https://nodejs.org/dist/$v/node-$v-linux-$a.tar.xz" | tar -xJ -C "$tmp"
+        rm -rf "$d/node" && mkdir -p "$d" && mv "$tmp/node-$v-linux-$a" "$d/node"
+      fi
+      export PATH=$d/node/bin:$PATH
+      have=$(node -p 'require(process.argv[1]).version' "$d/lib/node_modules/joplin/package.json" 2>/dev/null || true)
+      [ "$have" = "$(npm view joplin version)" ] || npm install -g -s --prefix "$d" joplin@latest >/dev/null
+      printf '#!/bin/sh\nPATH=%s/node/bin:$PATH exec %s/bin/joplin "$@"\n' "$d" "$d" >| ~/.local/bin/joplin
+      chmod +x ~/.local/bin/joplin
+    update: *joplin-cli
+    uninstall: rm -rf ~/.local/share/joplin-cli ~/.local/bin/joplin   # notes stay in ~/.config/joplin
+
+  - name: claude               # Claude Code
+    script: curl -fsSL https://claude.ai/install.sh | bash >/dev/null
+    uninstall: rm -rf ~/.local/bin/claude ~/.local/share/claude
+
+  - name: codex                # OpenAI Codex CLI
+    github: openai/codex
+    asset: codex-{m}-unknown-linux-musl.tar.gz
+    file: codex-{m}-unknown-linux-musl
+
+  - name: opencode             # OpenCode
+    script: curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path >/dev/null
+    uninstall: rm -rf ~/.opencode
+
+  # ================================================================================================================
+  # Linux desktop (not WSL)
+  # Fonts, kitty, apps, Japanese input, screen recording.
+  # ================================================================================================================
+  # --- fonts and terminal
+  - name: fontconfig           # fc-cache, for the fonts below
     when: desktop
-  - name: jetbrainsmono-nerd-font   # starship icons need a Nerd Font; VS Code's and the hyprbars title bars' font
+
+  - name: jetbrainsmono-nerd-font  # starship icons need a Nerd Font; VS Code's and the hyprbars title bars' font
     when: desktop
     skip_if: test -d ~/.local/share/fonts/JetBrainsMonoNerdFont
     script: |
@@ -180,9 +713,8 @@ linux:
       mv "$tmp" ~/.local/share/fonts/JetBrainsMonoNerdFont  # only once complete: skip_if tests this dir
       fc-cache -f ~/.local/share/fonts
     uninstall: rm -rf ~/.local/share/fonts/JetBrainsMonoNerdFont && { ! command -v fc-cache >/dev/null || fc-cache -f; }   # fontconfig may be removed first
-  - name: kitty   # terminal emulator; config in linux/kitty (dotfiles.conf: byobu keys, theme.conf: the look)
-    when: desktop
-  - name: fantasquesansmono-nerd-font   # the Hyprland desktop setup's font (kitty's was, before Departure Mono)
+
+  - name: fantasquesansmono-nerd-font  # the Hyprland desktop setup's font (kitty's was, before Departure Mono)
     when: desktop
     # a Hyprland desktop setup may have installed it already (its own copy and its own uninstall): then skipped
     skip_if: test -d ~/.local/share/fonts/FantasqueSansMNerdFont || fc-list | grep -q 'FantasqueSansM Nerd Font Mono'
@@ -193,7 +725,8 @@ linux:
       mv "$tmp" ~/.local/share/fonts/FantasqueSansMNerdFont  # only once complete: skip_if tests this dir
       fc-cache -f ~/.local/share/fonts
     uninstall: rm -rf ~/.local/share/fonts/FantasqueSansMNerdFont && { ! command -v fc-cache >/dev/null || fc-cache -f; }   # fontconfig may be removed first
-  - name: departuremono-nerd-font   # kitty's font (linux/kitty/theme.conf): retro-futuristic pixel; sharp at multiples of 11px
+
+  - name: departuremono-nerd-font  # kitty's font (linux/kitty/theme.conf): retro-futuristic pixel; sharp at multiples of 11px
     when: desktop
     skip_if: test -d ~/.local/share/fonts/DepartureMonoNerdFont
     script: |
@@ -203,7 +736,8 @@ linux:
       mv "$tmp" ~/.local/share/fonts/DepartureMonoNerdFont  # only once complete: skip_if tests this dir
       fc-cache -f ~/.local/share/fonts
     uninstall: rm -rf ~/.local/share/fonts/DepartureMonoNerdFont && { ! command -v fc-cache >/dev/null || fc-cache -f; }
-  - name: terminess-nerd-font   # Terminus, the classic bitmap terminal font, patched ("Terminess Nerd Font")
+
+  - name: terminess-nerd-font  # Terminus, the classic bitmap terminal font, patched ("Terminess Nerd Font")
     when: desktop
     skip_if: test -d ~/.local/share/fonts/TerminessNerdFont
     script: |
@@ -213,6 +747,102 @@ linux:
       mv "$tmp" ~/.local/share/fonts/TerminessNerdFont  # only once complete: skip_if tests this dir
       fc-cache -f ~/.local/share/fonts
     uninstall: rm -rf ~/.local/share/fonts/TerminessNerdFont && { ! command -v fc-cache >/dev/null || fc-cache -f; }
+
+  - name: kitty                # terminal emulator; config in linux/kitty (dotfiles.conf: byobu keys, theme.conf: the look)
+    when: desktop
+
+  # --- apps
+  - name: code                 # VS Code (Microsoft's apt repo)
+    when: desktop
+    repo:
+      name: vscode
+      key: https://packages.microsoft.com/keys/microsoft.asc
+      url: https://packages.microsoft.com/repos/code
+      suite: stable
+
+  - name: spotify              # Spotify's official app, from its snap (Spotify's own Linux package; snap keeps it updated)
+    when: desktop
+    skip_if: "! command -v snap >/dev/null || snap list spotify >/dev/null 2>&1"
+    script: sudo snap install spotify
+    uninstall: sudo snap remove spotify
+
+  - {name: libfuse2t64, when: desktop}   # AppImages (Joplin's desktop app) need FUSE 2
+
+  - name: joplin-desktop       # Joplin's own installer: AppImage in ~/.joplin, menu entry, icon; re-run, it updates
+    when: desktop
+    skip_if: test -x ~/.joplin/Joplin.AppImage
+    script: &joplin-desktop curl -fsSL https://raw.githubusercontent.com/laurent22/joplin/dev/Joplin_install_and_update.sh | bash -s -- --silent
+    update: *joplin-desktop
+    uninstall: >-   # notes stay in ~/.config/joplin-desktop
+      rm -rf ~/.joplin ~/.local/share/applications/appimagekit-joplin.desktop
+      ~/.local/share/icons/hicolor/512x512/apps/joplin.png
+
+  # chat: Beeper, one app for WhatsApp, Signal, Telegram, Matrix and the rest (Linux desktop here, Windows below; not
+  # WSL). It keeps your chats decrypted in a local database, so `private:` checks the machine first: on one with
+  # software that can read its files or record its screen (e.g. a work machine's EDR), it asks before installing.
+  # The AppImage is unpacked into ~/.local/opt/beeper and updated by the installer (Beeper can't update itself
+  # unpacked), so Chromium's sandbox stays on: Beeper's own menu entry turns it off (--no-sandbox), as Ubuntu 24.04+
+  # blocks the user namespaces it needs; an AppArmor profile allows them for this one program instead
+  - name: beeper
+    when: desktop
+    private: Beeper keeps your chats decrypted in a local database and shows them on screen
+    skip_if: test -x ~/.local/opt/beeper/app/beepertexts
+    script: &beeper |
+      d=~/.local/opt/beeper
+      url=https://api.beeper.com/desktop/download/linux/x64/stable/com.automattic.beeper.desktop
+      [ "$(uname -m)" = x86_64 ] || { echo "Beeper: no Linux build for $(uname -m)"; exit 1; }
+      loc=$(curl -fsSI "$url" | tr -d '\r' | awk 'tolower($1) == "location:" {print $2}' | tail -1)
+      v=${loc##*/Beeper-}; v=${v%-x86_64.AppImage}
+      [ -n "$loc" ] && [ "$v" != "$loc" ] || { echo "Beeper: no download found"; exit 1; }
+      [ -x "$d/app/beepertexts" ] && [ "$(cat "$d/version" 2>/dev/null)" = "$v" ] && exit 0
+      if pgrep -x beepertexts >/dev/null; then echo "Beeper $v is out: quit Beeper, then re-run to update"; exit 0; fi
+      echo "beeper $v"
+      tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+      curl -fsSL -o "$tmp/Beeper.AppImage" "$loc" && chmod +x "$tmp/Beeper.AppImage"
+      (cd "$tmp" && ./Beeper.AppImage --appimage-extract >/dev/null)
+      mkdir -p "$d" && rm -rf "$d/app" && mv "$tmp/squashfs-root" "$d/app" && echo "$v" >"$d/version"
+      install -Dm644 "$d/app/beepertexts.png" ~/.local/share/icons/hicolor/512x512/apps/beepertexts.png
+      mkdir -p ~/.local/share/applications
+      sed "s|^Exec=.*|Exec=$d/app/beepertexts %U|" "$d/app/beepertexts.desktop" >~/.local/share/applications/beepertexts.desktop
+      ! command -v update-desktop-database >/dev/null || update-desktop-database -q ~/.local/share/applications
+      # (Ubuntu 24.04+: AppArmor running, with the abi that has userns)
+      if [ -e /etc/apparmor.d/abi/4.0 ] && [ -d /sys/kernel/security/apparmor ] && command -v apparmor_parser >/dev/null; then
+        printf 'abi <abi/4.0>,\ninclude <tunables/global>\n\nprofile dotfiles-beeper %s flags=(unconfined) {\n  userns,\n  include if exists <local/dotfiles-beeper>\n}\n' \
+          "$d/app/beepertexts" | sudo tee /etc/apparmor.d/dotfiles-beeper >/dev/null
+        sudo apparmor_parser -r /etc/apparmor.d/dotfiles-beeper
+      fi
+    update: *beeper
+    uninstall: |   # Beeper's data (your chats) stays in ~/.config/BeeperTexts: delete it to remove them too
+      if [ -e /etc/apparmor.d/dotfiles-beeper ]; then
+        sudo apparmor_parser -R /etc/apparmor.d/dotfiles-beeper 2>/dev/null; sudo rm -f /etc/apparmor.d/dotfiles-beeper
+      fi
+      rm -rf ~/.local/opt/beeper ~/.local/share/applications/beepertexts.desktop ~/.local/share/icons/hicolor/512x512/apps/beepertexts.png
+
+  # --- Japanese input
+  # Japanese input under Hyprland and COSMIC (installed or chosen: --hyprland / --cosmic): fcitx5 + Mozc, Ctrl-Space (started by linux/hypr/dotfiles.lua, and under
+  # COSMIC by linux/cosmic/fcitx5.desktop). GNOME keeps ibus (ibus-mozc below): with ibus installed, im-config's
+  # automatic choice stays ibus. Only where Hyprland or COSMIC is.
+  - {name: fcitx5, when: desktop, skip_if: &no-fcitx '! command -v Hyprland >/dev/null && ! command -v cosmic-session >/dev/null && [ ! -e "${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/desktop-hyprland" ] && [ ! -e "${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/desktop-cosmic" ]'}
+
+  # Mozc (Japanese) for fcitx5
+  - {name: fcitx5-mozc, when: desktop, skip_if: *no-fcitx}
+
+  # GTK 3/4 and Qt 5/6 modules, for XWayland and older apps. The metapackage itself: removing one of its parts
+  # by name would make apt mark the other parts manual, and autoremove would leave them
+  - {name: fcitx5-frontend-all, when: desktop, skip_if: *no-fcitx}
+
+  - {name: fcitx5-config-qt, when: desktop, skip_if: *no-fcitx}       # fcitx5-configtool: input methods, keys
+
+  # Japanese input under Ubuntu's GNOME: ibus + Mozc, Ctrl-Space too (input sources and key set by linux/install.sh)
+  - {name: ibus-mozc, when: desktop, skip_if: '! command -v gnome-shell >/dev/null'}
+
+  # --- screen recording
+  - {name: slurp, when: desktop}   # picks the area for Ctrl-Alt-Shift-A screen recording (linux/desktop/record.sh)
+
+  # ================================================================================================================
+  # Hyprland (opt-in: install.cmd --hyprland)
+  # The desktop setup first; its layer (when: in-hyprland) builds on it.
+  # ================================================================================================================
   # The Hyprland desktop setup, opt-in: ./install.cmd --hyprland (Ubuntu 26.04+). LinuxBeginnings/Ubuntu-Hyprland's
   # installer (Hyprland from its PPA, waybar, rofi, swaync, hyprlock, ...) with its Hyprland config Hyprland-Dots;
   # linux/hypr/dotfiles.lua and the entries below sit on top of it. Both pinned: bump INSTALLER / DOTS + VERSION to
@@ -266,7 +896,8 @@ linux:
           wlogout xdg-desktop-portal-hyprland yad yt-dlp xarchiver hyprland xfce-polkit" \
         --dirs "ags btop cava fastfetch hypr Kvantum qt5ct qt6ct rofi swappy swaync Thunar wallust waybar wlogout"
       cd ~ && rm -rf "$dir"
-  - name: hyprbars   # Hyprland title bars: drag to move, minimize/maximize/close; settings in linux/hypr/dotfiles.lua
+
+  - name: hyprbars             # Hyprland title bars: drag to move, minimize/maximize/close; settings in linux/hypr/dotfiles.lua
     when: in-hyprland
     interactive: true   # hyprpm runs sudo itself, and can ask for the password again
     # installed = built and enabled (a failed build is listed too, as "enabled: Plugin failed to build").
@@ -313,7 +944,8 @@ linux:
     uninstall: >-
       hyprpm disable hyprbars; hyprpm remove https://github.com/hyprwm/hyprland-plugins; hyprpm reload;
       "$DOT/linux/apt-deps" remove g++-14 glslang-dev liblua5.4-dev libhyprutils-dev libaquamarine-dev libhyprlang-dev libhyprcursor-dev libhyprgraphics-dev libxcb-errors-dev
-  - name: hyprfocus   # Hyprland: flash on the window that gets keyboard focus; settings in linux/hypr/dotfiles.lua
+
+  - name: hyprfocus            # Hyprland: flash on the window that gets keyboard focus; settings in linux/hypr/dotfiles.lua
     when: in-hyprland
     interactive: true   # hyprpm, as for hyprbars
     # the same hyprland-plugins repo as hyprbars (built and updated by its entry above): only enabled here.
@@ -327,7 +959,8 @@ linux:
       hyprpm enable hyprfocus
       [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || hyprpm reload
     uninstall: "! command -v hyprpm >/dev/null || { hyprpm disable hyprfocus; hyprpm reload; }"
-  - name: hyprspace   # Hyprland workspace overview on tap-Super (drag windows between workspaces); settings in linux/hypr/dotfiles.lua
+
+  - name: hyprspace            # Hyprland workspace overview on tap-Super (drag windows between workspaces); settings in linux/hypr/dotfiles.lua
     when: in-hyprland
     interactive: true   # hyprpm, as for hyprbars
     # Built like hyprbars (whose entry above installs the build packages and, on update, rebuilds every hyprpm plugin)
@@ -344,7 +977,8 @@ linux:
       hyprpm list | sed 's/\x1b\[[0-9;]*m//g' | grep -A1 'Plugin Hyprspace$' | grep -q 'enabled: true' ||
         { echo "Hyprspace didn't build: 'hyprpm -v update -f' shows why"; exit 1; }
     uninstall: "! command -v hyprpm >/dev/null || { hyprpm disable Hyprspace; hyprpm remove https://github.com/KZDKM/Hyprspace; hyprpm reload; }"
-  - name: wayle   # Hyprland panel (bar, notifications, OSD), tried in place of waybar: linux/hypr/panel.sh switches, config in linux/wayle
+
+  - name: wayle                # Hyprland panel (bar, notifications, OSD), tried in place of waybar: linux/hypr/panel.sh switches, config in linux/wayle
     when: in-hyprland
     # Not packaged for Ubuntu: built from its latest release tag with cargo (Rust 1.93+: 26.04's cargo) into ~/.local
     skip_if: "[ -x ~/.local/bin/wayle ] || ! command -v Hyprland >/dev/null"
@@ -363,11 +997,35 @@ linux:
       { cargo uninstall --root ~/.local wayle 2>/dev/null; cargo uninstall --root ~/.local wayle-settings 2>/dev/null; true; } &&
       rm -rf ~/.local/bin/wayle ~/.local/bin/wayle-settings ~/.local/share/wayle &&
       "$DOT/linux/apt-deps" remove libgtksourceview-5-dev libfftw3-dev libpipewire-0.3-dev libpulse-dev
-  - name: spotify   # Spotify's official app, from its snap (Spotify's own Linux package; snap keeps it updated)
-    when: desktop
-    skip_if: "! command -v snap >/dev/null || snap list spotify >/dev/null 2>&1"
-    script: sudo snap install spotify
-    uninstall: sudo snap remove spotify
+
+  - name: hyprshell            # Hyprland Alt-Tab switcher + launcher; config in linux/hyprshell, started by linux/hypr/dotfiles.lua
+    when: in-hyprland
+    # Needs GTK 4.18+, libadwaita 1.8+ and gtk4-layer-shell 1.1.1+ (Ubuntu 26.04 on), and Hyprland 0.57+ (it binds its
+    # keys through the Lua config; Ubuntu 26.04's own Hyprland is 0.53, the PPA's is newer): skipped before, and the
+    # rofi Alt-Tab/launcher stay. Built with cargo (Rust 1.92+; 26.04's cargo is 1.93) into ~/.local/bin.
+    skip_if: >-
+      [ -x ~/.local/bin/hyprshell ] || ! command -v Hyprland >/dev/null ||
+      ! dpkg --compare-versions "$(Hyprland --version | awk 'NR == 1 {print $2}')" ge 0.57 ||
+      dpkg --compare-versions "$(apt-cache policy libgtk-4-1 | awk '/Candidate:/ {print $2}')" lt 4.18   # the GTK apt offers
+    script: |
+      set -e
+      "$DOT/linux/apt-deps" install cargo pkg-config libgtk-4-dev libadwaita-1-dev libgtk4-layer-shell-dev
+      cargo install --locked --root ~/.local hyprshell
+    update: "[ ! -x ~/.local/bin/hyprshell ] || cargo install --locked --root ~/.local hyprshell"   # a no-op when current
+    uninstall: >-
+      { cargo uninstall --root ~/.local hyprshell || rm -f ~/.local/bin/hyprshell; } &&
+      "$DOT/linux/apt-deps" remove cargo libgtk-4-dev libadwaita-1-dev libgtk4-layer-shell-dev
+
+  - {name: wf-recorder, when: in-hyprland, skip_if: &no-hyprland '! command -v Hyprland >/dev/null && [ ! -e "${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/desktop-hyprland" ]'}   # Ctrl-Alt-Shift-R screen recording (linux/desktop/record.sh)
+
+  # monitor layouts that switch by themselves on plug/unplug (docking). Profiles name this machine's screens, so they
+  # live in the untracked ~/.config/kanshi/config; linux/hypr/dotfiles.lua starts kanshi only when that file exists
+  - {name: kanshi, when: in-hyprland, skip_if: *no-hyprland}
+
+  # ================================================================================================================
+  # COSMIC (opt-in: install.cmd --cosmic)
+  # The desktop first, then its applets and tools.
+  # ================================================================================================================
   # COSMIC (System76's desktop), opt-in: ./install.cmd --cosmic. Chosen at the login screen next to GNOME and Hyprland.
   # Not packaged by Ubuntu or System76 for Ubuntu: from the community PPA hepp3n/cosmic-epoch (its key by fingerprint).
   # Its theme and keys: linux/cosmic. It brings its own panel, dock, launcher, switcher, overview and title bars.
@@ -377,7 +1035,8 @@ linux:
       name: cosmic-epoch
       key: https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xEB141BFC014828F92C2EF883210C6A47471454A0
       url: https://ppa.launchpadcontent.net/hepp3n/cosmic-epoch/ubuntu
-  - name: wl-screenrec   # screen recording under COSMIC (linux/desktop/record.sh): wf-recorder needs wlroots' screencopy
+
+  - name: wl-screenrec         # screen recording under COSMIC (linux/desktop/record.sh): wf-recorder needs wlroots' screencopy
     when: cosmic
     skip_if: "[ -x ~/.local/bin/wl-screenrec ]"
     script: |
@@ -386,6 +1045,7 @@ linux:
       cargo install --locked --root ~/.local wl-screenrec
     update: "[ ! -x ~/.local/bin/wl-screenrec ] || cargo install --locked --root ~/.local wl-screenrec"   # a no-op when current
     uninstall: "{ cargo uninstall --root ~/.local wl-screenrec || rm -f ~/.local/bin/wl-screenrec; }"
+
   # COSMIC panel applets, put in the panel by COSMIC_KEYS in linux/install.sh (as wayle's cpu/ram and idle-inhibit).
   # System monitor (leonardo-panseri/cosmic-ext-applet-sysmon): CPU, RAM, GPU, disk and network as numbers in the
   # panel, details and graphs in its popup; right click opens btop (its process_monitor: COSMIC_KEYS). No package:
@@ -410,6 +1070,7 @@ linux:
       sudo rm -f /usr/local/bin/cosmic-ext-applet-sysmon
       /usr/local/share/applications/io.github.leonardo_panseri.cosmic-ext-applet-sysmon.desktop
       /usr/local/share/icons/hicolor/scalable/apps/io.github.leonardo_panseri.cosmic-ext-applet-sysmon.svg
+
   # Caffeine (Oussamaberchi/caffeine-cosmic): keep awake, no dimming, locking or sleep, with a timer. No package:
   # built with cargo at a pinned commit (bump COMMIT to update), into /usr/local, where the panel finds applets
   - name: cosmic-caffeine
@@ -430,6 +1091,7 @@ linux:
     uninstall: >-
       sudo rm -f /usr/local/bin/cosmic-caffeine /usr/local/share/applications/com.github.cosmic-caffeine.desktop
       /usr/local/share/icons/hicolor/scalable/apps/oussama-berchi-caffeine-cosmic.svg
+
   # The input method in the panel as EN / あ (fcitx5, like the Hyprland panel's): this repo's own small applet,
   # linux/cosmic/input-applet. COSMIC's Input Sources applet shows only the keyboard layout, and fcitx5's tray icon
   # only shows inside the status area with every other tray icon. Built with cargo into /usr/local, where the panel
@@ -453,6 +1115,7 @@ linux:
     uninstall: >-
       sudo rm -f /usr/local/bin/dotfiles-cosmic-applet-input /usr/local/share/applications/dev.dotfiles.CosmicAppletInput.desktop &&
       rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles/input-applet" "${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/cosmic-applet-input.build"
+
   # pivot (Sigma-studios/pivot): Alt-Tab with live window previews under COSMIC; a quick tap flips to the previous
   # window, as in GNOME. Bound in linux/cosmic/shortcuts.ron (COSMIC's own switcher while pivot is missing), started at
   # login by linux/cosmic/pivot.desktop. Early software: built with cargo at a pinned commit (bump COMMIT and the one in
@@ -472,6 +1135,7 @@ linux:
     uninstall: >-
       { cargo uninstall --root ~/.local pivot || rm -f ~/.local/bin/pivot; } &&
       rm -f "${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/pivot.build"
+
   # skwd-wall (liixini/skwd-wall): wallpaper picker under COSMIC (Super-W, linux/cosmic/shortcuts.ron), with a built-in
   # Wallhaven browser that downloads and applies. It draws the wallpaper itself (skwd-walld) over COSMIC's background.
   # Beta, and its Debian packages are new: the release's .debs, pinned with their sha256 (bump all four lines to
@@ -505,439 +1169,31 @@ linux:
     uninstall: |
       systemctl --user disable --now skwd-walld.service 2>/dev/null || true
       "$DOT/linux/apt-deps" remove skwd-wall-v2 skwd-deck skwd-paper
-  - {name: slurp, when: desktop}   # picks the area for Ctrl-Alt-Shift-A screen recording (linux/desktop/record.sh)
-  - {name: wf-recorder, when: in-hyprland, skip_if: &no-hyprland '! command -v Hyprland >/dev/null && [ ! -e "${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/desktop-hyprland" ]'}   # Ctrl-Alt-Shift-R screen recording (linux/desktop/record.sh)
-  # monitor layouts that switch by themselves on plug/unplug (docking). Profiles name this machine's screens, so they
-  # live in the untracked ~/.config/kanshi/config; linux/hypr/dotfiles.lua starts kanshi only when that file exists
-  - {name: kanshi, when: in-hyprland, skip_if: *no-hyprland}
-  # Japanese input under Hyprland and COSMIC (installed or chosen: --hyprland / --cosmic): fcitx5 + Mozc, Ctrl-Space (started by linux/hypr/dotfiles.lua, and under
-  # COSMIC by linux/cosmic/fcitx5.desktop). GNOME keeps ibus (ibus-mozc below): with ibus installed, im-config's
-  # automatic choice stays ibus. Only where Hyprland or COSMIC is.
-  - {name: fcitx5, when: desktop, skip_if: &no-fcitx '! command -v Hyprland >/dev/null && ! command -v cosmic-session >/dev/null && [ ! -e "${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/desktop-hyprland" ] && [ ! -e "${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/desktop-cosmic" ]'}
-  - {name: fcitx5-mozc, when: desktop, skip_if: *no-fcitx}
-  # GTK 3/4 and Qt 5/6 modules, for XWayland and older apps. The metapackage itself: removing one of its parts
-  # by name would make apt mark the other parts manual, and autoremove would leave them
-  - {name: fcitx5-frontend-all, when: desktop, skip_if: *no-fcitx}
-  - {name: fcitx5-config-qt, when: desktop, skip_if: *no-fcitx}       # fcitx5-configtool: input methods, keys
-  # Japanese input under Ubuntu's GNOME: ibus + Mozc, Ctrl-Space too (input sources and key set by linux/install.sh)
-  - {name: ibus-mozc, when: desktop, skip_if: '! command -v gnome-shell >/dev/null'}
-  - name: hyprshell   # Hyprland Alt-Tab switcher + launcher; config in linux/hyprshell, started by linux/hypr/dotfiles.lua
-    when: in-hyprland
-    # Needs GTK 4.18+, libadwaita 1.8+ and gtk4-layer-shell 1.1.1+ (Ubuntu 26.04 on), and Hyprland 0.57+ (it binds its
-    # keys through the Lua config; Ubuntu 26.04's own Hyprland is 0.53, the PPA's is newer): skipped before, and the
-    # rofi Alt-Tab/launcher stay. Built with cargo (Rust 1.92+; 26.04's cargo is 1.93) into ~/.local/bin.
-    skip_if: >-
-      [ -x ~/.local/bin/hyprshell ] || ! command -v Hyprland >/dev/null ||
-      ! dpkg --compare-versions "$(Hyprland --version | awk 'NR == 1 {print $2}')" ge 0.57 ||
-      dpkg --compare-versions "$(apt-cache policy libgtk-4-1 | awk '/Candidate:/ {print $2}')" lt 4.18   # the GTK apt offers
-    script: |
-      set -e
-      "$DOT/linux/apt-deps" install cargo pkg-config libgtk-4-dev libadwaita-1-dev libgtk4-layer-shell-dev
-      cargo install --locked --root ~/.local hyprshell
-    update: "[ ! -x ~/.local/bin/hyprshell ] || cargo install --locked --root ~/.local hyprshell"   # a no-op when current
-    uninstall: >-
-      { cargo uninstall --root ~/.local hyprshell || rm -f ~/.local/bin/hyprshell; } &&
-      "$DOT/linux/apt-deps" remove cargo libgtk-4-dev libadwaita-1-dev libgtk4-layer-shell-dev
-
-  # dev
-  - gh
-  - git-delta
-  - shellcheck
-  - jq
-  - yq
-  - name: lazygit
-    github: jesseduffield/lazygit
-    asset: lazygit_{version}_linux_{xarch}.tar.gz
-  - name: d2     # diagrams from text: `d2 -w in.d2 out.svg` (live preview)
-    github: terrastruct/d2
-    asset: d2-{tag}-linux-{arch}.tar.gz
-    file: d2-{tag}/bin/d2
-  - name: sops   # encrypted secrets in YAML/JSON/env files; with age keys (~/.config/sops/age/keys.txt, per machine)
-    github: getsops/sops
-    asset: sops-{tag}.linux.{arch}
-  - age          # file encryption, sops' key type
-  - name: step   # smallstep CLI: certificates, CSRs, inspect TLS (`step certificate inspect https://host`), JWTs
-    github: smallstep/cli
-    asset: step_linux_{version}_{arch}.tar.gz
-    file: step_{version}/bin/step
-  - name: grpcurl   # curl for gRPC
-    github: fullstorydev/grpcurl
-    asset: grpcurl_{version}_linux_{xarch}.tar.gz
-  - name: websocat  # netcat for WebSockets
-    github: vi/websocat
-    asset: websocat.{m}-unknown-linux-musl
-  - name: usql   # one SQL CLI for Postgres, MySQL, SQLite, MSSQL, Oracle... (static build: every driver)
-    github: xo/usql
-    asset: usql_static-{version}-linux-{arch}.tar.bz2
-    file: usql_static
-  - kcat         # Kafka producer/consumer/metadata
-  - name: code
-    when: desktop
-    repo:
-      name: vscode
-      key: https://packages.microsoft.com/keys/microsoft.asc
-      url: https://packages.microsoft.com/repos/code
-      suite: stable
-
-  # infra
-  - ansible
-  - kubectx
-  - name: kubectl
-    script: |
-      curl -fsSLo ~/.local/bin/kubectl "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release/stable.txt)/bin/linux/$(dpkg --print-architecture)/kubectl"
-      chmod +x ~/.local/bin/kubectl
-    uninstall: rm -f ~/.local/bin/kubectl
-  # krew: kubectl plugins, in ~/.krew (its bin is on PATH in zshenv). Each tool is `kubectl <name>`
-  - name: krew
-    skip_if: test -x ~/.krew/bin/kubectl-krew
-    script: |
-      set -e
-      tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-      a=$(dpkg --print-architecture)
-      curl -fsSL "https://github.com/kubernetes-sigs/krew/releases/latest/download/krew-linux_$a.tar.gz" | tar -xz -C "$tmp"
-      "$tmp/krew-linux_$a" install krew >/dev/null
-    update: ~/.krew/bin/kubectl-krew update >/dev/null && ~/.krew/bin/kubectl-krew upgrade >/dev/null   # index, then krew and its plugins
-    uninstall: rm -rf ~/.krew
-    tools:
-      - neat          # kubectl neat: manifests without status and managed fields
-      - tree          # kubectl tree: what owns what
-      - view-secret   # kubectl view-secret: decoded secrets
-      - node-shell    # kubectl node-shell: root shell on a node
-      - df-pv         # kubectl df-pv: PV usage
-      - who-can       # kubectl who-can: RBAC, who may do a verb on a resource
-  - name: kubeshark   # API traffic viewer for a cluster (deploys its agents into it)
-    github: kubeshark/kubeshark
-    asset: kubeshark_linux_{arch}
-  - name: helm
-    skip_if: test -x ~/.local/bin/helm   # ours, even where an older helm exists (it can't load helm-diff's current plugin.yaml)
-    script: curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | HELM_INSTALL_DIR=~/.local/bin USE_SUDO=false bash >/dev/null
-    uninstall: rm -f ~/.local/bin/helm
-  - name: helm-diff   # helm diff upgrade: what an upgrade would change (helmfile uses it too)
-    skip_if: ~/.local/bin/helm plugin list 2>/dev/null | grep -q '^diff'
-    script: mkdir -p "$(~/.local/bin/helm env HELM_PLUGINS)" && ~/.local/bin/helm plugin install https://github.com/databus23/helm-diff >/dev/null
-    update: ~/.local/bin/helm plugin update diff >/dev/null
-    uninstall: ~/.local/bin/helm plugin uninstall diff >/dev/null
-  - name: helmfile
-    github: helmfile/helmfile
-    asset: helmfile_{version}_linux_{arch}.tar.gz
-  - name: k9s
-    github: derailed/k9s
-    asset: k9s_Linux_{arch}.tar.gz
-  - name: stern
-    github: stern/stern
-    asset: stern_{version}_linux_{arch}.tar.gz
-  # tenv: terraform, OpenTofu and Terragrunt versions per project (.terraform-version, required_version), through
-  # its proxies `terraform`, `tofu`, `terragrunt`; each version downloads on first use (latest when unpinned)
-  - name: tenv
-    github: tofuutils/tenv
-    asset: tenv_{tag}_Linux_{xarch}.tar.gz
-    extra: [terraform, tofu, terragrunt]
-    skip_if: test -x ~/.local/bin/tenv
-  - name: tflint
-    github: terraform-linters/tflint
-    asset: tflint_linux_{arch}.zip
-  - name: terraform-docs
-    github: terraform-docs/terraform-docs
-    asset: terraform-docs-{tag}-linux-{arch}.tar.gz
-  - name: infracost   # cost estimate of a terraform plan (`infracost auth login` once, per machine)
-    github: infracost/infracost
-    asset: infracost-linux-{arch}.tar.gz
-    file: infracost-linux-{arch}
-  - name: steampipe   # SQL over cloud APIs: `steampipe plugin install aws kubernetes net`, then `steampipe query`
-    github: turbot/steampipe
-    asset: steampipe_linux_{arch}.tar.gz
-  - name: granted     # AWS profile switching: `assume <profile>` (alias in zsh_aliases), `granted console`
-    github: common-fate/granted
-    asset: granted_{version}_linux_{xarch}.tar.gz
-    extra: [assume, assumego]
-  - name: aws
-    script: |
-      tmp=$(mktemp -d)
-      curl -fsSLo "$tmp/aws.zip" "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip"
-      unzip -q "$tmp/aws.zip" -d "$tmp"
-      "$tmp/aws/install" -i ~/.local/share/aws-cli -b ~/.local/bin >/dev/null
-      command rm -rf "$tmp"
-    uninstall: rm -rf ~/.local/share/aws-cli ~/.local/bin/aws ~/.local/bin/aws_completer
-  # Ubuntu's Docker; skipped when Docker CE/Desktop already provides docker (the packages conflict)
-  - name: docker.io
-    skip_if: &other-docker command -v docker >/dev/null && ! dpkg -s docker.io >/dev/null 2>&1
-    post: id -nG | grep -qw docker || sudo usermod -aG docker "$USER"   # no sudo for docker (next login)
-  - name: docker-compose-v2
-    skip_if: *other-docker
-  - name: docker-buildx
-    skip_if: *other-docker
-  # containerlab: network labs (SR Linux, cEOS, FRR, Linux...) as containers, wired from a topology file. Its .deb
-  # from the release (its apt repo is unsigned, trusted=yes). Router images are pulled per lab; some (cEOS) need a
-  # vendor login. The package makes the clab_admins group: you're added, so it runs without sudo (next login)
-  - name: containerlab
-    skip_if: dpkg -s containerlab >/dev/null 2>&1
-    script: &containerlab |   # also its update: a no-op when it's the latest release
-      set -e
-      tag=$(curl -fsSLo /dev/null -w '%{url_effective}' https://github.com/srl-labs/containerlab/releases/latest | sed 's|.*/||')
-      [ "$(dpkg-query -W -f='${Version}' containerlab 2>/dev/null)" = "${tag#v}" ] && exit 0
-      tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT; chmod 755 "$tmp"   # apt's _apt user reads the .deb
-      curl -fsSLo "$tmp/clab.deb" "https://github.com/srl-labs/containerlab/releases/download/$tag/containerlab_${tag#v}_linux_$(dpkg --print-architecture).deb"
-      sudo apt-get install -y -qq "$tmp/clab.deb"
-      "$DOT/linux/apt-deps" own containerlab
-    update: *containerlab
-    post: "! getent group clab_admins >/dev/null || id -nG \"$USER\" | grep -qw clab_admins || sudo usermod -aG clab_admins \"$USER\""
-    uninstall: |   # out of clab_admins too (the group goes with the package)
-      ! id -nG "$USER" | grep -qw clab_admins || sudo gpasswd -d "$USER" clab_admins >/dev/null
-      "$DOT/linux/apt-deps" remove containerlab
-
-  # network
-  - name: xh
-    github: ducaale/xh
-    asset: xh-{tag}-{m}-unknown-linux-musl.tar.gz
-    file: xh-{tag}-{m}-unknown-linux-musl/xh
-    post: '[ -e ~/.local/bin/ht ] || ln -s xh ~/.local/bin/ht'
-    uninstall: rm -f ~/.local/bin/xh ~/.local/bin/ht
-  - libcap2-bin  # setcap for trip
-  - gping        # ping, graphed
-  - name: trip   # trippy: mtr/traceroute with AS names and a map; config in linux/trippy, `trip` function in zshrc
-    github: fujiapple852/trippy
-    asset: trippy-{version}-{m}-unknown-linux-musl.tar.gz
-    file: trippy-{version}-{m}-unknown-linux-musl/trip
-    skip_if: test -x ~/.local/bin/trip   # ours, even where another trip (e.g. cargo's) is on PATH
-    # raw sockets without sudo; the cap is lost when the binary is replaced, so check each run
-    post: getcap ~/.local/bin/trip | grep -q cap_net_raw || sudo setcap cap_net_raw+ep ~/.local/bin/trip
-  - geoipupdate  # MaxMind's GeoLite2 City for trip's map; the installer asks for a free license key once
-  - name: doggo  # dig
-    github: mr-karan/doggo
-    asset: doggo-linux-{m}.tar.gz
-  - name: rustnet  # network monitor TUI, connections per process. Its package sets the capabilities it needs
-    repo:
-      name: rustnet
-      key: https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x02E6E9053D5D53D9A85E142C2985E57C5DF10033
-      url: https://ppa.launchpadcontent.net/domcyrus/rustnet/ubuntu
-  - name: sshs     # pick a host from ~/.ssh/config; SynthWave colours via the alias in linux/zsh/zsh_aliases
-    github: quantumsheep/sshs
-    asset: sshs-linux-{arch}
-    skip_if: test -x ~/.local/bin/sshs   # ours, even where a .deb's /usr/bin/sshs exists
-  - name: termscp  # TUI file transfer: SFTP, SCP, FTP, S3, SMB, WebDAV; theme in linux/termscp
-    github: veeso/termscp
-    asset: termscp-{tag}-{m}-unknown-linux-musl.tar.gz
-    skip_if: test -x ~/.local/bin/termscp
-  - nmap
-  - tcpdump
-  - tshark
-  - termshark
-  - mtr-tiny
-  - iperf3
-  - bind9-dnsutils
-  - ipcalc
-  - whois
-  - bgpq4
-  - socat
-  - asn          # AS, prefixes, peers, geolocation, reputation for an IP/ASN/domain; trace with AS names
-  - name: globalping   # ping/traceroute/mtr/dig/http from probes worldwide (`globalping auth login` for higher limits)
-    github: jsdelivr/globalping-cli
-    asset: globalping_Linux_{xarch}.tar.gz
-  - name: monocle      # BGP: MRT parsing, search updates, RPKI, AS-to-name, as2rel
-    github: bgpkit/monocle
-    asset: monocle-{m}-unknown-linux-gnu.tar.gz
-  - name: gnmic        # gNMI client: get/set/subscribe on routers, switches
-    github: openconfig/gnmic
-    asset: gnmic_{version}_Linux_{m}.tar.gz
-  - lldpd        # LLDP/CDP neighbours: `lldpcli show neighbors` (runs as a service)
-  # scanning
-  - name: rustscan     # fast port discovery, then nmap on what's open. Its release is a tar.gz inside a zip
-    skip_if: test -x ~/.local/bin/rustscan
-    script: &rustscan |   # also its update: a no-op when it's the latest release
-      set -e
-      tag=$(curl -fsSLo /dev/null -w '%{url_effective}' https://github.com/bee-san/RustScan/releases/latest | sed 's|.*/||')
-      [ "$(~/.local/bin/rustscan --version 2>/dev/null)" = "rustscan ${tag#v}" ] && exit 0
-      tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-      curl -fsSLo "$tmp/r.zip" "https://github.com/bee-san/RustScan/releases/download/$tag/$(uname -m)-linux-rustscan.tar.gz.zip"
-      unzip -q "$tmp/r.zip" -d "$tmp" && tar -xzf "$tmp/$(uname -m)-linux-rustscan.tar.gz" -C "$tmp"
-      install -m 755 "$tmp/rustscan" ~/.local/bin/rustscan
-    update: *rustscan
-    uninstall: rm -f ~/.local/bin/rustscan
-  - name: nmap-formatter   # nmap XML to HTML, CSV, Markdown, JSON, D2, Graphviz
-    github: vdjagilev/nmap-formatter
-    asset: nmap-formatter-linux-{arch}.tar.gz
-  - arp-scan     # who's on this LAN (sudo arp-scan -l)
-  - fping        # ping many hosts / a subnet at once (fping -g 10.0.0.0/24)
-  - hping3       # crafted TCP/UDP/ICMP probes
-  - scamper      # bulk traceroute/ping measurement
-  - grepcidr     # grep lines by IP in CIDRs
-  - name: mapcidr      # CIDR maths: split, aggregate, count, expand
-    github: projectdiscovery/mapcidr
-    asset: mapcidr_{version}_linux_{arch}.zip
-  # capture and kernel
-  - ngrep        # grep for packets
-  - tcpflow      # TCP streams to files
-  - conntrack    # conntrack-tools: netfilter connection table
-  - ethtool
-  - pwru         # which kernel function drops a packet (eBPF)
-  - bpftrace     # eBPF one-liners
-  - bpfcc-tools  # BCC's tools: tcpconnect-bpfcc, tcplife-bpfcc, tcpretrans-bpfcc, execsnoop-bpfcc...
-  # HTTP
-  - name: oha    # HTTP load test with a live TUI
-    github: hatoo/oha
-    asset: oha-linux-{arch}
-
-  # python: pyenv build deps, then pyenv with 3.11, 3.12 (global unless you picked one) and 3.14
-  - python3
-  - python3-yaml
-  - virtualenvwrapper
-  - build-essential
-  - libssl-dev
-  - zlib1g-dev
-  - libbz2-dev
-  - libreadline-dev
-  - libsqlite3-dev
-  - libncurses-dev
-  - xz-utils
-  - tk-dev
-  - libxml2-dev
-  - libxmlsec1-dev
-  - libffi-dev
-  - liblzma-dev
-  - name: uv
-    script: curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh >/dev/null
-    uninstall: rm -f ~/.local/bin/uv ~/.local/bin/uvx
-  - name: pyenv
-    skip_if: test -d ~/.pyenv
-    script: git clone -q https://github.com/pyenv/pyenv.git ~/.pyenv
-    update: git -C ~/.pyenv pull -q --ff-only
-    post: |
-      export PYENV_ROOT=~/.pyenv; pyenv=~/.pyenv/bin/pyenv
-      for v in 3.11 3.12 3.14; do
-        v=$("$pyenv" latest -k "$v")
-        [ -d ~/.pyenv/versions/"$v" ] || { echo "python $v (builds from source, a few minutes)"; "$pyenv" install -s "$v"; }
-      done
-      [ "$("$pyenv" global)" != system ] || "$pyenv" global "$("$pyenv" latest 3.12)"
-    uninstall: rm -rf ~/.pyenv   # also deletes every pyenv Python and virtualenv
-    tools:
-      - ptpython   # nicer Python REPLs (aliases ptpy, bpy in linux/zsh/zsh_aliases)
-      - bpython
-      - httpstat   # curl with a timing breakdown: DNS, connect, TLS, server, transfer
-  # SuzieQ: polls network devices over SSH into a queryable store (suzieq-cli, suzieq-gui). Not a `tools:` entry:
-  # it needs Python 3.10-3.11 and uvloop, which it doesn't declare. Config: linux/suzieq (configure_suzieq in
-  # linux/install.sh); sq-poller function in zshrc
-  - name: suzieq
-    skip_if: ~/.local/bin/uv tool list | grep -q '^suzieq '
-    script: ~/.local/bin/uv tool install -q --python '>=3.10,<3.12' suzieq --with uvloop
-    update: ~/.local/bin/uv tool upgrade -q suzieq
-    uninstall: ~/.local/bin/uv tool uninstall suzieq
-  # TTP (template-based parsing of CLI output) with ntc-templates (TextFSM templates for show commands) in its env.
-  # ntc-templates has no command: the `ntc` function in zshrc parses with it
-  - name: ttp
-    skip_if: ~/.local/bin/uv tool list | grep -q '^ttp '
-    script: ~/.local/bin/uv tool install -q ttp --with ntc-templates
-    update: ~/.local/bin/uv tool upgrade -q ttp
-    uninstall: ~/.local/bin/uv tool uninstall ttp
-
-  # ruby: rbenv + ruby-build with 3.2 (EOL 2026-03), 3.4 (global unless you picked one) and 4.0
-  - autoconf
-  - patch
-  - libyaml-dev
-  - libgmp-dev
-  - libgdbm-dev
-  - uuid-dev
-  - name: rbenv
-    skip_if: test -d ~/.rbenv
-    script: |
-      git clone -q https://github.com/rbenv/rbenv.git ~/.rbenv
-      git clone -q https://github.com/rbenv/ruby-build.git ~/.rbenv/plugins/ruby-build
-    update: git -C ~/.rbenv pull -q --ff-only && git -C ~/.rbenv/plugins/ruby-build pull -q --ff-only
-    post: |
-      export RBENV_ROOT=~/.rbenv; rbenv=~/.rbenv/bin/rbenv
-      for s in 3.2 3.4 4.0; do
-        v=$("$rbenv" install -L 2>/dev/null | tr -d ' ' | grep -E "^$s\.[0-9]+$" | sort -V | tail -1)
-        [ -n "$v" ] || { echo "no Ruby $s release found"; continue; }
-        [ -d ~/.rbenv/versions/"$v" ] || { echo "ruby $v (builds from source, a few minutes)"; "$rbenv" install -s "$v"; }
-      done
-      [ "$("$rbenv" global)" != system ] || "$rbenv" global "$(ls ~/.rbenv/versions | grep '^3\.4\.' | sort -V | tail -1)"
-    uninstall: rm -rf ~/.rbenv   # also deletes every rbenv Ruby and its gems
-
-
-  # go: official release in /usr/local/go (GOROOT), upgraded to the latest on each run.
-  # Older/newer toolchains per project come from go.mod's `toolchain` line (Go downloads them itself).
-  - name: go
-    skip_if: test -x /usr/local/go/bin/go
-    script: &go-latest |
-      v=$(curl -fsSL 'https://go.dev/VERSION?m=text' | head -1)
-      [ "$(/usr/local/go/bin/go env GOVERSION 2>/dev/null)" = "$v" ] && exit 0
-      echo "go $v"
-      tmp=$(mktemp)
-      curl -fsSLo "$tmp" "https://go.dev/dl/$v.linux-$(dpkg --print-architecture).tar.gz"
-      sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf "$tmp"
-      rm -f "$tmp"
-    update: *go-latest
-    uninstall: sudo rm -rf /usr/local/go
-    tools:
-      - golang.org/x/tools/gopls   # Go language server for vim-go and VS Code's Go extension
-
-  # node
-  - name: nvm
-    skip_if: test -d ~/.nvm
-    script: |
-      git clone -q https://github.com/nvm-sh/nvm.git ~/.nvm
-      git -C ~/.nvm -c advice.detachedHead=false checkout -q "$(git -C ~/.nvm describe --abbrev=0 --tags --match 'v[0-9]*' "$(git -C ~/.nvm rev-list --tags --max-count=1)")"
-    uninstall: rm -rf ~/.nvm
-
-  # notes: Joplin. Markdown notes and to-dos, synced through Joplin Cloud, OneDrive, Dropbox, Nextcloud/WebDAV or S3
-  # (end-to-end encryption optional). Set the same sync target in each app: `joplin config sync.target` in the CLI.
-  # The terminal app (`joplin`) is an npm package: it gets its own Node LTS in ~/.local/share/joplin-cli (Ubuntu
-  # 24.04's Node 18 is too old for it, and nvm's versions come and go); Node needs libatomic1
-  - libatomic1
-  - name: joplin
-    skip_if: test -x ~/.local/share/joplin-cli/bin/joplin
-    script: &joplin-cli |   # also its update: Node and Joplin are only fetched when newer
-      set -e
-      d=~/.local/share/joplin-cli
-      v=$(curl -fsSL https://nodejs.org/dist/index.json | python3 -c 'import json, sys; print(next(r["version"] for r in json.load(sys.stdin) if r["lts"]))')
-      a=$(dpkg --print-architecture | sed 's/amd64/x64/')
-      if [ "$("$d/node/bin/node" --version 2>/dev/null)" != "$v" ]; then
-        tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-        curl -fsSL "https://nodejs.org/dist/$v/node-$v-linux-$a.tar.xz" | tar -xJ -C "$tmp"
-        rm -rf "$d/node" && mkdir -p "$d" && mv "$tmp/node-$v-linux-$a" "$d/node"
-      fi
-      export PATH=$d/node/bin:$PATH
-      have=$(node -p 'require(process.argv[1]).version' "$d/lib/node_modules/joplin/package.json" 2>/dev/null || true)
-      [ "$have" = "$(npm view joplin version)" ] || npm install -g -s --prefix "$d" joplin@latest >/dev/null
-      printf '#!/bin/sh\nPATH=%s/node/bin:$PATH exec %s/bin/joplin "$@"\n' "$d" "$d" >| ~/.local/bin/joplin
-      chmod +x ~/.local/bin/joplin
-    update: *joplin-cli
-    uninstall: rm -rf ~/.local/share/joplin-cli ~/.local/bin/joplin   # notes stay in ~/.config/joplin
-  - {name: libfuse2t64, when: desktop}   # AppImages (Joplin's desktop app) need FUSE 2
-  - name: joplin-desktop   # Joplin's own installer: AppImage in ~/.joplin, menu entry, icon; re-run, it updates
-    when: desktop
-    skip_if: test -x ~/.joplin/Joplin.AppImage
-    script: &joplin-desktop curl -fsSL https://raw.githubusercontent.com/laurent22/joplin/dev/Joplin_install_and_update.sh | bash -s -- --silent
-    update: *joplin-desktop
-    uninstall: >-   # notes stay in ~/.config/joplin-desktop
-      rm -rf ~/.joplin ~/.local/share/applications/appimagekit-joplin.desktop
-      ~/.local/share/icons/hicolor/512x512/apps/joplin.png
-
-  # AI CLIs (desktop apps are in the windows list)
-  - name: claude
-    script: curl -fsSL https://claude.ai/install.sh | bash >/dev/null
-    uninstall: rm -rf ~/.local/bin/claude ~/.local/share/claude
-  - name: codex
-    github: openai/codex
-    asset: codex-{m}-unknown-linux-musl.tar.gz
-    file: codex-{m}-unknown-linux-musl
-  - name: opencode
-    script: curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path >/dev/null
-    uninstall: rm -rf ~/.opencode
 
 windows:
-  # Wireshark/Nmap: the free Npcap installer can't run silently, so its setup window may appear
-  - Git.Git
-  - Microsoft.WindowsTerminal
-  - Microsoft.VisualStudioCode
-  - id: DEVCOM.JetBrainsMonoNerdFont
+  # ================================================================================================================
+  # Windows (winget ids): from install.ps1 on Windows, or from WSL. Grouped like the linux list.
+  # ================================================================================================================
+  # --- terminal and shell
+  - Git.Git                    # git (install.ps1 installs it first: the package list lives in the repo)
+  - Microsoft.WindowsTerminal  # the terminal; WSL merges this repo's theme into its settings
+  - id: DEVCOM.JetBrainsMonoNerdFont   # Windows Terminal's font
     font: JetBrainsMonoNerdFont
-  - AmN.yasb
-  - Microsoft.PowerToys
-  - 9P7KNL5RWT25   # Sysinternals Suite from the Microsoft Store: the winget one fails its hash check whenever Microsoft
+  - AmN.yasb                   # status bar (config: windows/yasb)
+  # --- dev
+  - Microsoft.VisualStudioCode  # VS Code
+  # --- system
+  - Microsoft.PowerToys        # FancyZones, PowerToys Run and other utilities
+  - 9P7KNL5RWT25               # Sysinternals Suite from the Microsoft Store: the winget one fails its hash check whenever Microsoft
                    # updates the unversioned zip before the manifest, and the Store copy updates itself
-  - voidtools.Everything
-  - WiresharkFoundation.Wireshark
-  - Insecure.Nmap
-  - Joplin.Joplin   # notes, synced with the Linux apps (packages above)
-  - Anthropic.Claude
-  - Anomaly.OpenCode.Desktop
+  - voidtools.Everything       # instant file search
+  # --- network (Wireshark/Nmap: the free Npcap installer can't run silently, so its setup window may appear)
+  - WiresharkFoundation.Wireshark  # packet capture GUI
+  - Insecure.Nmap                # port scanner, with Zenmap
+  # --- notes and chat
+  - Joplin.Joplin              # notes, synced with the Linux apps (packages above)
+  - id: Beeper.Beeper   # chat; checked first, like the Linux one (beeper above)
+    private: Beeper keeps your chats decrypted in a local database and shows them on screen
+  # --- AI
+  - Anthropic.Claude           # Claude desktop app
+  - Anomaly.OpenCode.Desktop   # OpenCode desktop app

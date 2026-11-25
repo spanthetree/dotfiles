@@ -19,6 +19,10 @@ param([string]$Distro, [switch]$Uninstall, [switch]$Yes, [switch]$RemoveWsl, [Pa
 if ($Rest -contains '--uninstall') { $Uninstall = [switch]$true }
 if ($Rest -contains '--yes') { $Yes = [switch]$true }
 if ($Rest -contains '--remove-wsl') { $RemoveWsl = [switch]$true }
+if ($Rest -contains '--check') {   # the check is Linux-side: run it there (it also checks the Windows apps from WSL)
+  Write-Host 'install.cmd --check runs inside WSL: open your distro and run ~/dotfiles/install.cmd --check'
+  return
+}
 
 $ErrorActionPreference = 'Stop'
 $RepoUrl   = 'https://github.com/spanthetree/dotfiles.git'
@@ -58,12 +62,45 @@ function Install-YamlModule {
   Install-Module powershell-yaml -Scope CurrentUser -Force
 }
 
-# winget ids under the `windows:` key of packages.yaml; entries are an id or a map with `id`
+# entries under the `windows:` key of packages.yaml: an id, or a map with `id` (and `private`: Test-PrivateOk)
 function Read-WindowsPackages([string]$Path) {
   Import-Module powershell-yaml
   foreach ($p in (ConvertFrom-Yaml (Get-Content $Path -Raw)).windows) {
-    if ($p -is [string]) { $p } else { $p.id }
+    if ($p -is [string]) { [pscustomobject]@{ id = $p; private = $null } }
+    else { [pscustomobject]@{ id = $p.id; private = $p.private } }
   }
+}
+
+# A `private:` app (holds private data, e.g. Beeper's chats): before installing it, windows/monitoring-check.ps1 looks
+# for what could let someone else see that data (device management, endpoint security, DLP, screen monitoring,
+# traffic inspection). Nothing found: install. Found: say what and ask (default no; -Yes means no). The answer is kept
+# per app until the findings change, in private.json next to windows.installed (packages.py in WSL uses it too).
+$PrivateAnswers = Join-Path $env:LOCALAPPDATA 'dotfiles\private.json'
+function Test-PrivateOk([string]$Id, [string]$Why) {
+  winget list -e --id $Id --accept-source-agreements *> $null
+  if ($LASTEXITCODE -eq 0) { return $true }   # already installed: nothing to decide
+  [string[]]$found = @(& (Join-Path $WinClone 'windows\monitoring-check.ps1') | Where-Object { $_ } | Select-Object -Unique)
+  if (-not $found.Count) { return $true }
+  [Array]::Sort($found, [StringComparer]::Ordinal)   # the order packages.py keeps them in
+  $answers = @{}
+  if (Test-Path $PrivateAnswers) {
+    (Get-Content $PrivateAnswers -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $answers[$_.Name] = $_.Value }
+  }
+  $a = $answers[$Id]
+  if ($a -and ((@($a.found) -join "`n") -eq ($found -join "`n"))) {
+    if (-not $a.install) { Log "${Id}: not installed, as you chose (this machine is monitored; to be asked again, delete $PrivateAnswers)" }
+    return [bool]$a.install
+  }
+  Write-Host "`n${Id}: $Why. This machine shows:" -ForegroundColor Yellow
+  foreach ($f in $found) { Write-Host "    $f" }
+  Write-Host ("Software like this can read this machine's files or record its screen, so whoever runs it (e.g. your " +
+              'employer) could see them. Nothing found would be no proof either: agents can be hidden, or added later.')
+  if ($Yes) { Write-Warning "${Id}: not installed (-Yes never says yes to this; re-run without it to choose)"; return $false }
+  $ok = (Read-Host "Install $Id anyway? [y/N]") -match '^[yY]'
+  $answers[$Id] = [pscustomobject]@{ found = $found; install = $ok }
+  New-Item -ItemType Directory -Force (Split-Path $PrivateAnswers) | Out-Null
+  ConvertTo-Json -InputObject $answers -Depth 4 | Set-Content $PrivateAnswers -Encoding UTF8
+  return $ok
 }
 
 # Parses `wsl --list --online`; keeps Debian/Ubuntu only, since install.sh uses apt.
@@ -177,6 +214,9 @@ function Uninstall-Dotfiles {
     }
   }
 
+  # 3b. The answers for private apps (asked again on a new install)
+  Remove-Item $PrivateAnswers -ErrorAction SilentlyContinue
+
   # 4. A pending resume after a WSL reboot
   Remove-ItemProperty -Path $RunOnce -Name 'dotfiles-install' -ErrorAction SilentlyContinue
 
@@ -232,7 +272,10 @@ function Main {
 
   # Windows apps from packages.yaml
   Install-YamlModule
-  foreach ($id in Read-WindowsPackages (Join-Path $WinClone 'packages.yaml')) { Install-WingetPackage $id }
+  foreach ($p in Read-WindowsPackages (Join-Path $WinClone 'packages.yaml')) {
+    if ($p.private -and -not (Test-PrivateOk $p.id $p.private)) { continue }
+    Install-WingetPackage $p.id
+  }
   Update-SessionPath
 
   # 3. YASB: config straight from the repo, start at sign-in

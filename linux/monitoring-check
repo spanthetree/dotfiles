@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# monitoring-check: software on this machine that could let someone else see private data stored or shown on it.
+# Prints one line per finding (nothing on a machine with none). Two kinds:
+#   - it can read local files: endpoint security (EDR), data loss prevention, file-query and forensics agents. Beeper,
+#     for one, keeps its chats decrypted in a local SQLite database;
+#   - it can record the screen: activity and screen monitoring.
+# Read-only: it only looks for install folders and running processes. packages.py runs it before installing an entry
+# with `private:` (e.g. Beeper), and asks first when it finds anything.
+# Not listed: what only sees network traffic (VPNs, Zscaler, Netskope, company root certificates) or manages the
+# device (MDM, directory joins, config management). End-to-end encryption keeps messages from those; what they deploy
+# shows up here once installed. Nothing found is no proof of privacy: an agent can be hidden, or added later.
+set -uo pipefail
+procs=$(ps -eo args= 2>/dev/null | awk '{print $1}')   # each process's program, not its arguments
+found() { printf '%s\n' "$1"; }
+has_dir() { local d; for d; do [[ -e $d ]] && return 0; done; return 1; }
+has_proc() { grep -qiE "$1" <<<"$procs"; }
+
+# name | what it is | install folders (any) | process regex (optional)
+while IFS='|' read -r name what dirs re; do
+  [[ -z $name || $name == \#* ]] && continue
+  # shellcheck disable=SC2086  # dirs: a space-separated list
+  if { [[ -n $dirs ]] && has_dir $dirs; } || { [[ -n $re ]] && has_proc "$re"; }; then found "$name ($what)"; fi
+done <<'EOF'
+CrowdStrike Falcon|endpoint security: reads files|/opt/CrowdStrike|falcon-sensor
+SentinelOne|endpoint security: reads files|/opt/sentinelone|sentinelone|s1-agent
+Microsoft Defender for Endpoint|endpoint security: reads files|/opt/microsoft/mdatp|wdavdaemon
+Palo Alto Cortex XDR|endpoint security: reads files|/opt/traps /etc/panw|
+Carbon Black|endpoint security: reads files|/opt/carbonblack /var/opt/carbonblack|cbagentd
+Sophos|endpoint security: reads files|/opt/sophos-spl /opt/sophos-av|
+Elastic Defend|endpoint security: reads files|/opt/Elastic|elastic-endpoint|elastic-agent
+Trend Micro|endpoint security: reads files|/opt/ds_agent /opt/TrendMicro|
+Trellix (McAfee)|endpoint security: reads files|/opt/McAfee /opt/isec /opt/Trellix|
+Cybereason|endpoint security: reads files|/opt/cybereason|
+Cisco Secure Endpoint|endpoint security: reads files|/opt/cisco/amp|
+Bitdefender GravityZone|endpoint security: reads files|/opt/bitdefender-security-tools|
+ESET|endpoint security: reads files|/opt/eset|
+Kaspersky Endpoint Security|endpoint security: reads files|/opt/kaspersky|
+WithSecure|endpoint security: reads files|/opt/f-secure /opt/withsecure|
+Uptycs|endpoint security: reads files|/opt/uptycs|
+Velociraptor|forensics agent: reads files|/opt/velociraptor|velociraptor
+Tanium|endpoint management: file queries|/opt/Tanium|
+Rapid7 Insight Agent|security agent: reads files|/opt/rapid7|
+Qualys Cloud Agent|security agent: reads files|/usr/local/qualys|
+Wazuh|security monitoring: watches files|/var/ossec|
+osquery|endpoint queries: reads files|/opt/osquery|osqueryd
+Kolide|device checks (osquery): reads files|/usr/local/kolide-k2 /opt/kolide-k2|
+Fleet|endpoint queries (osquery): reads files|/opt/orbit|
+Jamf Protect|endpoint security: reads files|/opt/jamf|
+Teramind|activity and screen recording|/opt/teramind|teramind
+Hubstaff|activity and screen recording|/opt/Hubstaff|hubstaff
+Time Doctor|activity and screen recording||timedoctor|time.doctor
+Insightful|activity and screen recording||insightful|workpuls
+Controlio|activity and screen recording||controlio
+Forcepoint|data loss prevention: reads files|/opt/websense /opt/forcepoint|
+Code42 Incydr|data loss prevention: reads files|/usr/local/crashplan /opt/code42|code42
+EOF
+
+exit 0

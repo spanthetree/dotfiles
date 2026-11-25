@@ -9,12 +9,15 @@
 #     --hyprland  also install the Hyprland desktop setup (Ubuntu 26.04+; kept on later runs); --no-hyprland drops it
 #   ./install.cmd --uninstall remove it all: links, plugins, settings, packages it installed (asks); restores backups
 #   ./install.cmd --no-fx     plain output, no spinners (also off when output isn't a terminal, or NO_FX=1)
+#   ./install.cmd --check     change nothing: report what differs from this repo (links, packages, settings);
+#                             exits 1 when something does
 set -euo pipefail
 
 DOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"  # the repo
 BACKUP="$HOME/.dotfiles-backup/$(date +%Y%m%d-%H%M%S)"
 PACKAGES=1
 UNINSTALL=0
+CHECK=0
 PKG_FLAGS=()
 # A desktop's settings and links are removed only when asked (--no-cosmic / --no-hyprland, or --uninstall), never
 # because its programs are missing: an apt mishap that removed COSMIC mid-run once also wiped its settings.
@@ -26,8 +29,9 @@ for arg in "$@"; do
     --adopt|--yes|--cosmic|--no-cosmic|--hyprland|--no-hyprland) PKG_FLAGS+=("$arg")
       case $arg in --no-cosmic) DROP_COSMIC=1 ;; --no-hyprland) DROP_HYPRLAND=1 ;; esac ;;
     --uninstall) UNINSTALL=1 ;;
-    --no-fx) NO_FX=1 ;;
-    -h|--help) sed -n '2,11s/^# \{0,1\}//p' "$0"; exit 0 ;;
+    --check) CHECK=1 ;;
+    --no-fx) export NO_FX=1 ;;  # exported: packages.py draws its own spinners
+    -h|--help) sed -n '2,13s/^# \{0,1\}//p' "$0"; exit 0 ;;
     *) echo "unknown option: $arg" >&2; exit 2 ;;
   esac
 done
@@ -113,7 +117,7 @@ install_packages() {
     sudo=(sudo)
     sudo_session
   fi
-  # packages.py needs the system python3 + PyYAML (not pyenv's python) to read packages.yaml, and gpg for apt repo keys
+  # packages.py needs the system python3 + PyYAML (not mise's python) to read packages.yaml, and gpg for apt repo keys
   if ! /usr/bin/python3 -c 'import yaml' 2>/dev/null || ! have gpg; then
     spin "apt update" "${sudo[@]}" apt-get update -qq
     spin "python3-yaml, gnupg" "${sudo[@]}" env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 python3-yaml gnupg
@@ -195,24 +199,27 @@ unlink_ours() {  # unlink_ours <path>: remove it if it's a link into this repo
   [[ -L $1 && $(readlink "$1") == "$DOT/"* ]] || return 0
   command rm -f "$1"; log "unlinked ${1/#$HOME/\~}"
 }
+link_skip() {  # link_skip <link under $HOME>: why this machine doesn't get it (nothing: it does). Also used by --check
+  local d=$1
+  if [[ $d == .config/kitty/* ]] && ! have kitty; then echo kitty  # kitty: packages.yaml, on a desktop
+  elif [[ $d == .config/hypr/* || $d == .config/systemd/user/* ]] && ! have Hyprland; then echo hyprland
+  elif [[ $d == .config/hyprshell/* && ! -x $HOME/.local/bin/hyprshell ]]; then echo hyprshell  # built only on GTK 4.18+
+  elif [[ $d == .config/wayle/* && ! -x $HOME/.local/bin/wayle ]]; then echo wayle  # packages.yaml, under Hyprland
+  elif [[ $d == .config/wallust/* ]] && ! have wallust; then echo wallust  # the Hyprland desktop setup's
+  elif [[ $d == .config/cosmic* || $d == .config/autostart/dotfiles-* || $d == .config/autostart/blueman.desktop ||
+          $d == .local/bin/dotfiles-record ]] && ! have cosmic-session; then echo cosmic
+  fi
+  return 0
+}
 link_configs() {
   local i
   for ((i = 0; i < ${#LINKS[@]}; i += 2)); do
-    [[ ${LINKS[i + 1]} == .config/kitty/* ]] && ! have kitty && continue  # kitty: packages.yaml, on a desktop
-    if [[ ${LINKS[i + 1]} == .config/hypr/* || ${LINKS[i + 1]} == .config/systemd/user/* ]] && ! have Hyprland; then
-      (( DROP_HYPRLAND )) && unlink_ours "$HOME/${LINKS[i + 1]}"  # --no-hyprland; otherwise links stay as they are
-      continue
-    fi
-    [[ ${LINKS[i + 1]} == .config/hyprshell/* && ! -x $HOME/.local/bin/hyprshell ]] && continue  # built only on GTK 4.18+
-    [[ ${LINKS[i + 1]} == .config/wayle/* && ! -x $HOME/.local/bin/wayle ]] && continue  # packages.yaml, under Hyprland
-    [[ ${LINKS[i + 1]} == .config/wallust/* ]] && ! have wallust && continue  # the Hyprland desktop setup's
-    if [[ ${LINKS[i + 1]} == .config/cosmic* || ${LINKS[i + 1]} == .config/autostart/dotfiles-* ||
-          ${LINKS[i + 1]} == .config/autostart/blueman.desktop ||
-          ${LINKS[i + 1]} == .local/bin/dotfiles-record ]] && ! have cosmic-session; then
-      (( DROP_COSMIC )) && unlink_ours "$HOME/${LINKS[i + 1]}"  # --no-cosmic; otherwise links stay as they are
-      continue
-    fi
-    link "${LINKS[i]}" "$HOME/${LINKS[i + 1]}"
+    case $(link_skip "${LINKS[i + 1]}") in
+      '') link "${LINKS[i]}" "$HOME/${LINKS[i + 1]}" ;;
+      # a desktop's links go only with --no-hyprland / --no-cosmic; otherwise they stay as they are
+      hyprland) if (( DROP_HYPRLAND )); then unlink_ours "$HOME/${LINKS[i + 1]}"; fi ;;
+      cosmic) if (( DROP_COSMIC )); then unlink_ours "$HOME/${LINKS[i + 1]}"; fi ;;
+    esac
   done
 }
 
@@ -296,7 +303,16 @@ configure_yasb() {
   spin "YASB: config, autostart, restart" bash -c '"$1" enable-autostart; "$1" stop; "$1" start' _ "$YASBC"
 }
 
+# The repo's pre-commit hook (.githooks/pre-commit): a privacy check before every commit to this public repo.
+# Set in the clone's own config (not ~/.gitconfig), so it applies to this repo only.
+configure_git_hooks() {
+  have git && git -C "$DOT" rev-parse --git-dir >/dev/null 2>&1 || return 0
+  [[ $(git -C "$DOT" config --local core.hooksPath) == .githooks ]] && return 0
+  git -C "$DOT" config --local core.hooksPath .githooks
+  log "git: this repo's privacy check runs before each commit (.githooks/pre-commit)"
+}
 configure_git() {
+  configure_git_hooks
   have delta && have git || return 0
   git config --global --fixed-value --unset-all include.path "$DOT/git/delta.gitconfig" 2>/dev/null || true  # pre-3.0 path
   git config --global --get-all include.path 2>/dev/null | grep -qxF "$DOT/linux/git/delta.gitconfig" && return 0
@@ -896,6 +912,10 @@ uninstall_configs() {
 }
 
 uninstall_system() {
+  if have git && [[ $(git -C "$DOT" config --local core.hooksPath 2>/dev/null) == .githooks ]]; then
+    git -C "$DOT" config --local --unset core.hooksPath
+    log "git: this repo's pre-commit hook turned off"
+  fi
   if have git && git config --global --get-all include.path 2>/dev/null | grep -qxF "$DOT/linux/git/delta.gitconfig"; then
     git config --global --fixed-value --unset-all include.path "$DOT/linux/git/delta.gitconfig"
     log "git: delta pager include removed"
@@ -957,6 +977,59 @@ uninstall() {
   log "to finish: rm -rf $DOT$(is_wsl && printf ' (and %%USERPROFILE%%\\dotfiles on Windows)')"
 }
 
+# ---------------------------------------------------------------- check
+# --check: compare this machine with the repo and change nothing. Reports links that are missing or point elsewhere,
+# packages that would be installed or uninstalled (packages.py --check), COSMIC keys changed in Settings, and git
+# settings. Exit 1 when anything differs.
+DRIFT=0
+drift() { warn "$*"; DRIFT=1; }
+check_links() {
+  local i d src
+  for ((i = 0; i < ${#LINKS[@]}; i += 2)); do
+    d=${LINKS[i + 1]} src=$DOT/${LINKS[i]}
+    [[ -z $(link_skip "$d") ]] || continue
+    if [[ -L $HOME/$d && $(readlink "$HOME/$d") == "$src" ]]; then
+      [[ -e $HOME/$d ]] || drift "links: ~/$d points to $src, which is missing"
+    elif [[ -L $HOME/$d ]]; then drift "links: ~/$d points to $(readlink "$HOME/$d"), not ${LINKS[i]}"
+    elif [[ -e $HOME/$d ]]; then drift "links: ~/$d is a file of its own, not a link to ${LINKS[i]}"
+    else drift "links: ~/$d is missing (-> ${LINKS[i]})"; fi
+  done
+}
+check_cosmic() {
+  have cosmic-session || return 0
+  local i f s v
+  for ((i = 0; i < ${#COSMIC_KEYS[@]}; i += 2)); do
+    f=$COSMIC_CFG/${COSMIC_KEYS[i]} s=$COSMIC_STATE/${COSMIC_KEYS[i]}
+    v=$(cosmic_value "${COSMIC_KEYS[i + 1]}")
+    [[ -n $v && ! ( -f $f && $(<"$f") == "$v" ) ]] || continue
+    if [[ -f $f && -f $s && $(<"$f") != "$(<"$s")" ]]; then drift "COSMIC: ${COSMIC_KEYS[i]} was changed in COSMIC Settings"
+    else drift "COSMIC: ${COSMIC_KEYS[i]} isn't the repo's (a re-run sets it)"; fi
+  done
+  have cosmic-settings || return 0  # as configure_cosmic_theme: imported only with it
+  local sum; sum=$(sha256sum "$DOT/linux/cosmic/SynthWave-84.ron" | cut -d' ' -f1)
+  [[ -f $COSMIC_STATE/theme && $(<"$COSMIC_STATE/theme") == "$sum" ]] || drift "COSMIC: the SynthWave '84 theme isn't imported (a re-run does it)"
+}
+check_git() {
+  have git && git -C "$DOT" rev-parse --git-dir >/dev/null 2>&1 || return 0  # as configure_git_hooks: a clone only
+  [[ $(git -C "$DOT" config --local core.hooksPath) == .githooks ]] || drift "git: this repo's pre-commit hook is off (a re-run turns it on)"
+  if have delta && ! git config --global --get-all include.path 2>/dev/null | grep -qxF "$DOT/linux/git/delta.gitconfig"; then
+    drift "git: the delta pager include is missing from ~/.gitconfig"
+  fi
+}
+check() {
+  section links; check_links
+  section packages
+  if have apt-get && /usr/bin/python3 -c 'import yaml' 2>/dev/null; then
+    /usr/bin/python3 -I "$DOT/linux/packages.py" linux --check || DRIFT=1
+    if is_wsl && have winget.exe; then /usr/bin/python3 -I "$DOT/linux/packages.py" windows --check || DRIFT=1; fi
+  else warn "packages: not on apt or no python3-yaml; not checked"; fi
+  section settings; check_git; check_cosmic
+  printf '\n'
+  if (( DRIFT )); then warn "differs from the repo: a re-run of install.cmd fixes most of it"; return 1; fi
+  log "matches the repo"
+}
+
+if [[ $CHECK -eq 1 ]]; then check; exit $?; fi
 if [[ $UNINSTALL -eq 1 ]]; then uninstall; exit 0; fi
 intro
 if [[ $PACKAGES -eq 1 ]]; then section packages; install_packages; fi

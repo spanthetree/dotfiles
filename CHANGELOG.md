@@ -2,6 +2,31 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [SemVer](https://semver.org/), tagged `vX.Y.Z`.
 
+## [5.0.0] - 2026-11-25
+
+Upgrading from 4.x: `git -C ~/dotfiles pull && ~/dotfiles/install.cmd`, then open a new shell. Python, Ruby and Go now come from mise: zsh no longer loads pyenv or rbenv, and once mise's versions are in, the installer asks whether to remove `~/.pyenv`, `~/.rbenv` and `/usr/local/go`. Move what you built on them by hand first: virtualenvs, gems in rbenv's Ruby, older Pythons (`mise use -g python@<version>`). The pre-commit privacy check turns on with that run; add your own patterns to `~/.config/dotfiles/private-patterns`.
+
+### Added
+- CI on every push and pull request (`.github/workflows/checks.yml`): lint (syntax, shellcheck, `packages.yaml`, PowerShell parsing), gitleaks over the whole history, the installer scenarios in fresh Ubuntu 24.04 and 26.04 containers, and the Windows installer's tests on a Windows runner. The same runs locally: `tests/lint.sh` and `tests/run.sh` (scenarios in `tests/scenarios`).
+- A privacy check before each commit (`.githooks/pre-commit`, turned on by the installer for this clone): stops a commit that adds a secret (gitleaks), an email address, or a line matching your own patterns in `~/.config/dotfiles/private-patterns`, which stays on your machine.
+- `install.cmd --check`: changes nothing, lists what differs from the repo (links, packages a run would install or uninstall, COSMIC settings, the commit hook), exits 1 if anything does.
+- kind (local Kubernetes clusters in Docker), autossh (self-reconnecting SSH tunnels), gitleaks.
+- Beeper, on a Linux desktop and on Windows (not in WSL). Before installing it, the installer checks the machine for software that could read your chats: Beeper keeps them decrypted in a local database and shows them on screen. It looks for endpoint security (CrowdStrike, SentinelOne, Defender for Endpoint and others), data loss prevention, file-query agents (osquery, Tanium, Velociraptor) and screen monitoring (Teramind, ActivTrak, Hubstaff...). If any are found, it names them and asks first (default no), and remembers the answer until the findings change. It's a generic `private:` key in `packages.yaml`, checked by `linux/monitoring-check` and `windows/monitoring-check.ps1`. On Linux the AppImage is unpacked into `~/.local/opt/beeper` and updated by the installer, keeping Chromium's sandbox on (an AppArmor profile allows the user namespaces it needs on Ubuntu 24.04+; Beeper's own launcher turns the sandbox off).
+- rustup with the stable Rust toolchain (rustc, cargo, clippy, rustfmt, rust-analyzer), updated on each run. It was on the owner's machine but set up by hand, so new machines didn't get it.
+
+### Changed
+- `packages.yaml` is grouped by what each tool is for (base, shell, files, data, languages, dev, containers, cloud, network, notes and AI, desktop, Hyprland, COSMIC; Windows likewise), under banner comments, and every entry has a comment saying what it's for. The entries themselves are unchanged.
+- Python and Ruby versions come from mise instead of pyenv and rbenv: Python 3.11, 3.12 (global) and 3.14, Ruby 3.2, 3.4 (global) and 4.0, prebuilt, so they install in seconds instead of compiling. The newest patch release of each is added on every run, and a global version you set yourself (`mise use -g`) is kept. `.python-version` and `.ruby-version` files still pick the version per project (`MISE_IDIOMATIC_VERSION_FILE_ENABLE_TOOLS` in `zshenv`). The byobu status row finds versions through mise's shims. The uv tools (ptpython, bpython, httpstat) now sit under the `uv` entry; ruby `tools:` go into mise's global Ruby.
+- Go comes from mise too: the latest release, under `~/.local/share/mise`, with no sudo. `GOPATH` stays `~/go`, so `go install` tools (gopls) stay where they were. On an existing machine the next run offers to uninstall the old `/usr/local/go`. `zshenv` no longer sets `GOROOT`, and puts mise's shims last on `PATH` so scripts and editors find mise's Go, Python and Ruby.
+- carapace completes only commands zsh has no completion for. zsh's own (git, ssh, systemctl, apt, docker...) are richer, so they're kept. For commands neither knows, carapace falls back to zsh's, fish's or bash's (`CARAPACE_BRIDGES`).
+- zsh-autosuggestions suggests from history first, then from completion (it was completion only).
+
+### Fixed
+- `--no-fx` didn't reach the package step, which kept its spinners.
+
+### Removed
+- pyenv and rbenv. On an existing machine, once mise's Python and Ruby are installed, a run asks (separately from other removals) whether to uninstall them, and the old `/usr/local/go`: that deletes their Pythons, Rubies, virtualenvs and gems, so reinstall any you still need with mise (`mise use -g python@3.12`, `gem install`). No keeps them for good, no longer managed by the installer; zsh no longer loads them either way. uv tools built on a pyenv Python that's gone are reinstalled.
+
 ## [4.4.0] - 2026-11-25
 
 ### Added
@@ -305,6 +330,7 @@ Existing machines: run `install.sh --packages --adopt` once (so removing a packa
 ### Added
 - Initial repo: zsh (antidote, replaces Prezto), Starship prompt and status config, byobu 4-row status bar, vim (vim-plug, replaces pathogen), Windows Terminal settings merge, `install.sh` with backup-then-link.
 
+[5.0.0]: https://github.com/spanthetree/dotfiles/compare/v4.4.0...v5.0.0
 [4.4.0]: https://github.com/spanthetree/dotfiles/compare/v4.3.0...v4.4.0
 [4.3.0]: https://github.com/spanthetree/dotfiles/compare/v4.2.0...v4.3.0
 [4.2.0]: https://github.com/spanthetree/dotfiles/compare/v4.1.0...v4.2.0

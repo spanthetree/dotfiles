@@ -2,8 +2,10 @@
 # Renders starship-status.toml modules for a directory as tmux styles.
 # Usage: context-status <dir>   (called from profile.tmux with the active pane's path)
 cd "${1:-$HOME}" 2>/dev/null || exit 0
-# tmux server env lacks the shell's PATH; add pyenv shims and go so versions resolve
-PATH="$HOME/.pyenv/shims:$HOME/go/bin:/usr/local/go/bin:$PATH"
+# tmux server env lacks the shell's PATH; add mise's shims (python, ruby, go) so versions resolve
+PATH="$HOME/.local/share/mise/shims:$HOME/go/bin:$PATH"
+export MISE_IDIOMATIC_VERSION_FILE_ENABLE_TOOLS=python,ruby
+# shellcheck disable=SC1007  # STARSHIP_SHELL set to empty on purpose: plain ANSI, no shell escapes
 STARSHIP_SHELL= STARSHIP_CONFIG="$HOME/.config/starship-status.toml" starship prompt 2>/dev/null |
 perl -CS -pe '
   s{\e\[([\d;]*)m}{

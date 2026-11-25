@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Privacy check before each commit to this public repo (CLAUDE.md). Turned on by the installer (core.hooksPath in
+# this clone's config). Blocks the commit when the staged changes add:
+#   - a secret gitleaks recognises (API tokens, keys, passwords in config);
+#   - a line matching one of your own patterns in ~/.config/dotfiles/private-patterns: one extended regex per line,
+#     case-insensitive, # for comments. Your name, email, hostnames, employer, internal domains, home IPs... It lives
+#     only on your machine (untracked), so the patterns themselves never reach the repo;
+#   - an email address, other than noreply and example ones.
+# Checked by hand and it's fine? Commit once with: git commit --no-verify
+set -uo pipefail
+patterns=${XDG_CONFIG_HOME:-$HOME/.config}/dotfiles/private-patterns
+red=$'\033[38;2;254;68;80m' yell=$'\033[38;2;254;222;93m' rst=$'\033[0m'
+blocked=0
+block() { printf '%s✗ %s%s\n' "$red" "$1" "$rst" >&2; blocked=1; }
+
+# the lines this commit adds, as "file:line: text"
+added=$(git diff --cached -U0 --no-color --no-ext-diff --diff-filter=ACMR | awk '
+  /^\+\+\+ b\// { f = substr($0, 7); next }
+  /^@@/ { split($3, a, /[+,]/); n = a[2]; next }
+  /^\+/ { print f ":" n ": " substr($0, 2); n++ }')
+
+if [[ -n $added ]]; then
+  if [[ -r $patterns ]]; then
+    re=$(grep -vE '^[[:space:]]*(#|$)' "$patterns")
+    if [[ -n $re ]] && hits=$(grep -iE -f <(printf '%s\n' "$re") <<<"$added"); then
+      block "personal data (matches ~/${patterns#"$HOME"/}):"; printf '    %s\n' "${hits//$'\n'/$'\n'    }" >&2
+    fi
+  else
+    printf '%s▲ no %s: only secrets and emails checked (add your name, hosts, employer... there)%s\n' \
+      "$yell" "${patterns/#$HOME/\~}" "$rst" >&2
+  fi
+  emails=$(grep -oiE '[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}' <<<"$added" |
+    grep -viE 'noreply|no-reply|@example\.(com|org|net)$|^git@' | sort -u)
+  if [[ -n $emails ]]; then
+    block "email addresses:"; printf '    %s\n' $emails >&2
+  fi
+fi
+
+if command -v gitleaks >/dev/null; then
+  gitleaks git --pre-commit --staged --redact --no-banner --log-level warn . >&2 || block "gitleaks found a secret (above)"
+else
+  printf '%s▲ gitleaks not installed: secrets not checked (install.cmd installs it)%s\n' "$yell" "$rst" >&2
+fi
+
+if (( blocked )); then
+  printf '\nCommit stopped: this repo is public. Fix the lines above, or if they are fine: git commit --no-verify\n' >&2
+  exit 1
+fi
+exit 0

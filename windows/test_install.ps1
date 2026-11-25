@@ -31,8 +31,13 @@ if ((Get-LatestLtsIndex @($list[4])) -ne 0) { throw 'no LTS should fall back to 
 # packages.yaml windows list: plain ids and maps with `id`, linux section ignored
 Install-YamlModule
 $tmp = Join-Path $env:TEMP 'dotfiles-test-packages.yaml'
-Set-Content $tmp @('linux:', '  - git', 'windows:', '  # comment', '  - Git.Git', '  - id: Foo.Font', '    font: Foo')
+Set-Content $tmp @('linux:', '  - git', 'windows:', '  # comment', '  - Git.Git', '  - id: Foo.Font', '    font: Foo',
+                  '  - id: Foo.Chat', '    private: Foo keeps chats')
 $pk = @(Read-WindowsPackages $tmp)
-if (($pk -join ',') -ne 'Git.Git,Foo.Font') { throw "packages: $($pk -join ',')" }
-if (@(Read-WindowsPackages (Join-Path $PSScriptRoot '..\packages.yaml')) -notcontains 'Git.Git') { throw 'packages.yaml should list Git.Git' }
+if (($pk.id -join ',') -ne 'Git.Git,Foo.Font,Foo.Chat') { throw "packages: $($pk.id -join ',')" }
+if ($pk[2].private -ne 'Foo keeps chats' -or $pk[0].private) { throw "private: $($pk.private -join ',')" }
+if (@(Read-WindowsPackages (Join-Path $PSScriptRoot '..\packages.yaml')).id -notcontains 'Git.Git') { throw 'packages.yaml should list Git.Git' }
+# monitoring-check.ps1 runs and prints only finding lines (none expected on a plain machine)
+$mc = @(& (Join-Path $PSScriptRoot 'monitoring-check.ps1'))
+if ($mc | Where-Object { $_ -isnot [string] }) { throw 'monitoring-check should print only strings' }
 'install.ps1 ok'

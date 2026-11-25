@@ -25,6 +25,7 @@ Update a machine: `git -C ~/dotfiles pull && ~/dotfiles/install.cmd`
 | `--hyprland` | also install the Hyprland desktop setup (Ubuntu 26.04+; see [Hyprland](#hyprland)), picked at the login screen. Remembered on this machine; `--no-hyprland` drops it and offers to uninstall it. On a machine where it's already installed: `--hyprland --adopt` once |
 | `--uninstall` | remove it all (below) |
 | `--no-fx` | plain output with each step's full output (also `NO_FX=1`; the default when output isn't a terminal) |
+| `--check` | change nothing: list what differs from the repo (missing or replaced links, packages a run would install or uninstall, COSMIC settings changed in Settings, the repo's commit hook); exits 1 if anything does. Linux and WSL (from WSL it also checks the Windows apps) |
 
 Output: themed section headers, and a spinner with elapsed time on each step (`✓`/`✗` when done; a failed step shows its last 20 lines). When it installs packages, sudo asks once at the start and stays fresh for the run.
 
@@ -35,11 +36,12 @@ Under WSL it also:
 - puts the YASB config in `%USERPROFILE%\.config\yasb` and turns on YASB's autostart, unless a Windows clone already manages it (`YASB_CONFIG_HOME`)
 
 On a Linux desktop (not WSL) it also:
-- installs kitty with this repo's config (`linux/kitty`: SynthWave '84, Departure Mono Nerd Font, byobu's keys), the JetBrainsMono and FantasqueSansM Nerd Fonts, VS Code, Spotify, and slurp for screen recording
+- installs kitty with this repo's config (`linux/kitty`: SynthWave '84, Departure Mono Nerd Font, byobu's keys), the JetBrainsMono, FantasqueSansM, Departure Mono and Terminess Nerd Fonts, VS Code, Spotify, and slurp for screen recording
+- installs Beeper, unless software that could read its chats is found: then it asks first (see [packages](packages.md))
 - sets up Japanese input with `Ctrl-Space`: ibus + Mozc on GNOME (the input-source switch moves there from `Super-Space`), fcitx5 + Mozc under Hyprland and COSMIC
 - adds this repo's layer to Hyprland wherever Hyprland is installed (below), however it got there
 
-On every system it points git's pager at delta via `include.path` to `linux/git/delta.gitconfig`.
+On every system it points git's pager at delta via `include.path` to `linux/git/delta.gitconfig`, and turns on this repo's privacy check before commits (`core.hooksPath` in the clone; see [development](development.md#privacy-check-before-commits)). Python, Ruby and Go versions come from mise (`mise use -g python@3.13` changes the global one; `.python-version`, `.ruby-version` and `mise.toml` set one per project).
 
 ## Hyprland
 
@@ -101,7 +103,7 @@ On Linux or in WSL it:
 1. Uninstalls the packages this installer installed (it lists them and asks), and the apt repos it added. Under WSL, also the Windows apps it installed. Packages that were already there stay, and so do core ones (git, curl, zsh, python3...).
 2. Removes the config links and the plugins it cloned (antidote, tmux-resurrect, tmux-continuum, vim-plug and vim plugins).
 3. Puts back what the links replaced, from the oldest backup (from before the first install).
-4. Removes the delta include from `~/.gitconfig`. Under WSL, it restores Windows Terminal's settings, `.wslconfig` and the YASB config from before the first install (today's Windows Terminal settings are backed up first), clears `YASB_CONFIG_HOME` and turns off YASB's autostart. On a desktop it removes the kitty includes, the edits to the Hyprland desktop setup's files (each marked `// dotfiles` or `# dotfiles`), the COSMIC settings and theme (unless changed in COSMIC Settings since), and puts GNOME's input sources back.
+4. Removes the delta include from `~/.gitconfig` and turns the repo's pre-commit hook off. Under WSL, it restores Windows Terminal's settings, `.wslconfig` and the YASB config from before the first install (today's Windows Terminal settings are backed up first), clears `YASB_CONFIG_HOME` and turns off YASB's autostart. On a desktop it removes the kitty includes, the edits to the Hyprland desktop setup's files (each marked `// dotfiles` or `# dotfiles`), the COSMIC settings and theme (unless changed in COSMIC Settings since), and puts GNOME's input sources back.
 
 Left for you: `chsh -s /bin/bash` if you want another shell, and deleting the clone(s). Backups stay in `~/.dotfiles-backup`.
 
@@ -115,6 +117,9 @@ Left for you: `chsh -s /bin/bash` if you want another shell, and deleting the cl
 | `~/.suzieq/inventory.yml` | devices for SuzieQ to poll (`sq-poller -I ~/.suzieq/inventory.yml`) |
 | `~/.config/GeoIP.conf` | MaxMind account ID and license key for trippy's GeoIP data; written by the installer when you enter them |
 | `~/.config/byobu/disable-autolaunch` | touch it to stop byobu auto-starting |
+| `~/.config/mise/config.toml` | your global Python, Ruby and Go versions (`mise use -g`); the installer sets them only while none is set |
+| `~/.config/dotfiles/private-patterns` | your own patterns for the pre-commit privacy check: name, email, hostnames, employer, internal domains (one regex per line) |
+| `~/.local/state/dotfiles/private.json` | your answers to "install anyway?" for Beeper on a monitored machine (Windows: `%LOCALAPPDATA%\dotfiles\private.json`); delete to be asked again |
 
 ## VS Code
 

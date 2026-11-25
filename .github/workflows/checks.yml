@@ -1,0 +1,57 @@
+# Checks on every push and pull request. The same as running locally:
+#   tests/lint.sh   syntax, shellcheck, packages.yaml, Windows Terminal merge, PowerShell parsing
+#   tests/run.sh    the installer scenarios in fresh Ubuntu containers (tests/scenarios)
+# plus gitleaks over the whole history, and the Windows installer's helpers on a Windows runner.
+name: checks
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # gitleaks reads the whole history
+      - name: tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq zsh shellcheck python3-yaml
+      - name: lint
+        run: tests/lint.sh
+      - name: secrets (gitleaks, whole history)
+        run: |
+          tag=$(curl -fsSI https://github.com/gitleaks/gitleaks/releases/latest | tr -d '\r' | awk 'tolower($1) == "location:" {print $2}')
+          tag=${tag##*/}
+          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/$tag/gitleaks_${tag#v}_linux_x64.tar.gz" | sudo tar -xz -C /usr/local/bin gitleaks
+          gitleaks git --redact --no-banner .
+
+  linux:
+    needs: lint
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ['ubuntu:24.04', 'ubuntu:26.04']
+    steps:
+      - uses: actions/checkout@v4
+      - name: installer scenarios in ${{ matrix.image }}
+        run: tests/run.sh -i "${{ matrix.image }}"
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: install.ps1 helpers
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File windows\test_install.ps1
+      - name: monitoring-check.ps1 (lists what this runner has; must run cleanly)
+        shell: powershell
+        run: |
+          $found = @(& .\windows\monitoring-check.ps1)
+          "findings: $($found.Count)"; $found

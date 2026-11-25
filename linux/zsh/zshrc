@@ -22,7 +22,8 @@ bindkey '^[[Z' reverse-menu-complete # Shift-Tab
 autoload -Uz edit-command-line && zle -N edit-command-line && bindkey '^X^E' edit-command-line  # open line in $EDITOR
 
 # --- Plugins (antidote; installer clones it to ~/.antidote) ---
-ZSH_AUTOSUGGEST_STRATEGY=(completion)
+# grey suggestions: from history first, else from completion
+ZSH_AUTOSUGGEST_STRATEGY=(history completion)
 if [[ -r ~/.antidote/antidote.zsh ]]; then
   source ~/.antidote/antidote.zsh
   antidote load ~/.zsh_plugins.txt
@@ -91,7 +92,7 @@ trip() {
   local db=~/.local/share/GeoIP/GeoLite2-City.mmdb
   if [[ -r $db ]]; then command trip -G $db "$@"; else command trip "$@"; fi
 }
-# SuzieQ's poller starts its workers with `#!/usr/bin/env python3`, which finds pyenv's python (no suzieq, no
+# SuzieQ's poller starts its workers with `#!/usr/bin/env python3`, which finds mise's python (no suzieq, no
 # uvloop): put its uv tool env first
 sq-poller() { PATH=~/.local/share/uv/tools/suzieq/bin:$PATH command sq-poller "$@" }
 # netshoot (nicolaka/netshoot): a shell full of network tools inside another container's or pod's network namespace,
@@ -129,23 +130,21 @@ function add_alias() {
 }
 
 # --- Tool completions ---
-# carapace: completions for ~1000 commands; the tools' own below come after it, so theirs win for those
-(( $+commands[carapace] )) && source <(carapace _carapace zsh)
+# carapace: completions for commands zsh has none for. zsh's own (git, ssh, systemctl...: richer, e.g. ssh reads
+# ~/.ssh/config hosts) are put back after it, and the tools' own below come after it, so theirs win too. For a
+# command carapace doesn't know either, it uses zsh's, fish's or bash's completion (bridges)
+if (( $+commands[carapace] )); then
+  export CARAPACE_BRIDGES='zsh,fish,bash'
+  typeset -A _zsh_comps=("${(@kv)_comps}")
+  source <(carapace _carapace zsh)
+  _comps+=("${(@kv)_zsh_comps}")
+  unset _zsh_comps
+fi
 (( $+commands[terraform] )) && complete -o nospace -C "$commands[terraform]" terraform
 (( $+commands[kubectl] )) && source <(kubectl completion zsh)
 (( $+commands[helm] )) && source <(helm completion zsh)
 
-# --- Python: pyenv, virtualenvwrapper, uv ---
-if (( $+commands[pyenv] )); then
-  eval "$(pyenv init -)"
-  if pyenv commands | grep -q '^virtualenv-init$'; then
-    export PYENV_VIRTUALENVWRAPPER_PREFER_PYVENV=true
-    eval "$(pyenv virtualenv-init -)"
-  fi
-fi
-
-# --- Ruby: rbenv (per-folder version via .ruby-version) ---
-(( $+commands[rbenv] )) && eval "$(rbenv init - zsh)"
+# --- Python: virtualenvwrapper, uv (Python versions: mise, below) ---
 export VIRTUALENVWRAPPER_PYTHON=/usr/bin/python3
 export WORKON_HOME=$HOME/Software/.virtualenvs
 export PROJECT_HOME=$HOME/Software/git
@@ -157,8 +156,8 @@ export NVM_DIR=$HOME/.nvm
 [[ -s $NVM_DIR/nvm.sh ]] && source $NVM_DIR/nvm.sh
 [[ -s $NVM_DIR/bash_completion ]] && source $NVM_DIR/bash_completion
 
-# --- mise: tool versions per project (mise.toml, .tool-versions). After pyenv, rbenv and nvm, so in a folder that
-# pins a version with mise, mise's comes first; elsewhere they're as before
+# --- mise: Python, Ruby and Go versions (global: `mise use -g python@3.13`), per project from mise.toml, .tool-versions,
+# .python-version or .ruby-version (zshenv turns the last two on). After nvm, so a version mise pins comes first
 (( $+commands[mise] )) && eval "$(mise activate zsh)"
 
 # --- Secrets and machine-specific config (both untracked) ---

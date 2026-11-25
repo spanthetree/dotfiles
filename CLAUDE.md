@@ -4,7 +4,7 @@ Notes for AI agents working on this repo: rules and lessons the code doesn't sho
 
 ## Rules
 
-- **Public repo.** Before every commit, check new content for personal data: names, emails, hostnames, IPs, employers, tokens. Machine-specific things belong in untracked per-machine files (`~/.zshrc.local`, `~/.zsh_secrets.gpg`), never in the repo. That includes proxies and NAS mounts.
+- **Public repo.** Before every commit, check new content for personal data: names, emails, hostnames, IPs, employers, tokens. The pre-commit hook (`.githooks/pre-commit`, with the owner's own patterns in `~/.config/dotfiles/private-patterns`) catches most of it; don't `--no-verify` past it without checking. Machine-specific things belong in untracked per-machine files (`~/.zshrc.local`, `~/.zsh_secrets.gpg`), never in the repo. That includes proxies and NAS mounts.
 - **Commit or push only when the owner says so** ("push"). Commits use the `spanthetree <spanthetree@users.noreply.github.com>` identity.
 - **Contributions:** only verified bug fixes and interface improvements are accepted; everything else is for forks (README).
 - **Every change goes through `packages.yaml` or the installers.** Nothing is set up by hand on one machine only, and every change must also be undone by `install.cmd --uninstall`. If you add a link, add it to `LINKS` in `linux/install.sh`. If you add a system change, add its undo to `uninstall_system`.
@@ -22,13 +22,13 @@ Semver: new feature = minor, fix = patch, a change that needs manual steps on ex
 
 - **tmux/byobu changes:** use an isolated server so the owner's sessions are untouched: `tmux -L test new -d -x 120 -y 30 '...'`, then `tmux -L test capture-pane -p`. To see a popup or the status bar, run an inner client inside an outer `-L` server and capture the outer one.
 - **Live tmux edits:** zsh can't parse tmux `{ }` blocks on the command line. Put the lines in a file and `tmux source-file` it.
-- **Installer and packages:** test in a clean `ubuntu:24.04` container with a cut-down `packages.yaml` (install, then `--uninstall --yes`), not on the owner's machine. A container on a WSL host still reports WSL in `/proc/version`, so `is_wsl` is true there.
-- **Checks:** `python3 -I windows/terminal/test_merge.py`; from WSL: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(wslpath -w windows/test_install.ps1)"`.
+- **Installer and packages:** `tests/run.sh` (scenarios in `tests/scenarios`, each in fresh `ubuntu:24.04` and `ubuntu:26.04` containers), never on the owner's machine. Add or extend a scenario for each installer change instead of ad hoc container scripts. A container on a WSL host still reports WSL in `/proc/version`, so `is_wsl` is true there.
+- **Checks:** `tests/lint.sh` before every commit; CI (`.github/workflows/checks.yml`) runs it, the scenarios, gitleaks and the Windows tests. From WSL: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(wslpath -w windows/test_install.ps1)"`.
 - `install.cmd` must parse in both `cmd.exe` and `sh`. Keep it LF-only (`.gitattributes`) and keep the `:;` line first.
 
 ## Gotchas
 
-- **Python:** `packages.py` must run under `/usr/bin/python3 -I`. pyenv's python has no PyYAML.
+- **Python:** `packages.py` must run under `/usr/bin/python3 -I`. mise's python has no PyYAML.
 - **Python /dev/tty:** don't open `/dev/tty` with `'r+'`. In text mode it raises "not seekable" (an OSError). Use separate read and write handles.
 - **fzf** comes from its GitHub release (latest), but an apt fzf the installer didn't install stays first on PATH, and Ubuntu 24.04's is 0.44. Keep byobu's scripts to 0.44 options: `--listen`, `transform-prompt` and `change:reload` work.
 - **tealdeer from apt can't fetch pages on Ubuntu 24.04** (1.6's built-in download URL is gone, and 1.6 can't be pointed elsewhere). That's why `tldr` comes from its GitHub release.
@@ -42,6 +42,8 @@ Semver: new feature = minor, fix = patch, a change that needs manual steps on ex
 - **COSMIC config:** Settings saves a key by replacing its file, so a link into the repo gets turned into a plain copy. That's why `configure_cosmic` copies the files. `cosmic-settings appearance import` rejects `//` comments, and COSMIC 1.11 keeps the theme in `v2/`.
 - **fcitx5 and Alt-Tab:** without `PersistentVirtualKeyboard=True` (`~/.config/fcitx5/conf/waylandim.conf`, set by the installer), fcitx5 lets go of `Alt` whenever an app with an input method loses focus, so pivot's `Alt-Tab` flips at once. `GTK_IM_MODULE` doesn't help: Electron uses text-input-v3 directly.
 - **apt removals:** `apt-get remove` takes every package that depends on its arguments. Dropping three `libxcb` libraries from `packages.yaml` once removed the whole desktop (~1,200 packages). `packages.py` now only claims apt packages marked manual, never passes installed ones to `apt-get install` (that marks them manual), removes only what `apt_plan` shows takes nothing else, and has no system-wide autoremove. Script steps in `packages.yaml` use `linux/apt-deps` (install / own / remove) instead of apt-get, with the same rules. Keep it that way.
+- **mise:** it ignores `.python-version` / `.ruby-version` unless told (`MISE_IDIOMATIC_VERSION_FILE_ENABLE_TOOLS`, set in `zshenv` and `context-status`), and `mise install python@3.12` never moves to a newer patch once one is installed: resolve with `mise latest` first, as `packages.yaml` does. `packages.py` runs gem/go tools through `mise exec` from `~`, so a project's version file in the current directory can't pick another version.
+- **Process matching** (`linux/monitoring-check`): match program paths, not full command lines. A command line also matches your own shell or editor when they mention the name.
 - **The owner's zsh** has `noclobber`: overwrite with `>|`.
 - **Stale `HYPRLAND_INSTANCE_SIGNATURE`:** byobu's server keeps the one from when it started, so after a Hyprland restart, shells in byobu name a dead instance: hyprctl/hyprpm fail ("failed to get the current hyprland version"). The installer's `fix_hypr_signature` switches to the live one; when testing by hand, take the live dir under `/run/user/$UID/hypr/` (the one whose `hyprctl version` answers).
 - **Claude Code's safety check** blocks `rm` inside `bash -c`. Put the `rm` in a script file, as `command rm` (the plain `rm` alias is interactive).

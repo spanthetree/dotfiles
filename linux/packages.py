@@ -4,6 +4,7 @@
   packages.py linux   [--adopt] [--yes]   apt repos + packages, github/script installs, update/post hooks
   packages.py windows [--adopt] [--yes]   winget ids on the Windows host (run from WSL)
   packages.py linux|windows --purge [--yes]   uninstall everything this installer recorded (install.cmd --uninstall)
+  packages.py linux|windows --check   change nothing: list what a run would install or uninstall; exit 1 if any
   packages.py linux --cosmic | --no-cosmic   choose (or drop) the opt-in COSMIC desktop on this machine (when: cosmic)
   packages.py linux --hyprland | --no-hyprland   the same for the Hyprland desktop setup (when: hyprland)
 
@@ -22,6 +23,7 @@ os.environ['DOT'] = DOT  # for packages.yaml's scripts (e.g. a file from this re
 HOME = os.path.expanduser('~')
 BIN = os.path.join(HOME, '.local', 'bin')
 STATE = os.path.join(os.environ.get('XDG_STATE_HOME', os.path.join(HOME, '.local', 'state')), 'dotfiles')
+PRIVATE = os.path.join(STATE, 'private.json')  # answers for `private:` entries (private_ok)
 SUDO = [] if os.geteuid() == 0 else ['sudo']
 # The installer, the shell and the repo itself depend on these
 PROTECTED = {'git', 'curl', 'ca-certificates', 'gnupg', 'gpg', 'openssl', 'python3', 'python3-yaml', 'zsh', 'sudo',
@@ -29,6 +31,7 @@ PROTECTED = {'git', 'curl', 'ca-certificates', 'gnupg', 'gpg', 'openssl', 'pytho
 ADOPT = '--adopt' in sys.argv
 YES = '--yes' in sys.argv
 PURGE = '--purge' in sys.argv  # as if packages.yaml were empty
+CHECK = '--check' in sys.argv  # read-only: report only (install.cmd --check)
 # Opt-in desktops (when: cosmic, when: hyprland): chosen per machine with --cosmic / --hyprland, kept in the state dir
 # until --no-cosmic / --no-hyprland. Their entries (and apt repos) are only used while chosen; dropping the choice
 # offers to uninstall what they installed.
@@ -131,6 +134,76 @@ def confirm(what, names, detail=''):
             return inp.readline().strip().lower() in ('y', 'yes')
     except OSError:
         warn('no terminal to ask; not uninstalling (re-run interactively, or pass --yes)')
+        return False
+
+
+# ---- `private:` entries (apps holding private data, e.g. Beeper's chats). Before installing one, look for what could
+# let someone else see that data here: device management, endpoint security, data loss prevention, screen monitoring,
+# traffic inspection (linux/monitoring-check, windows/monitoring-check.ps1). Nothing found: install as usual. Found:
+# say what, and ask (default no). The answer is kept per app until the findings change; --yes and no terminal both
+# mean no. Linux answers in the state dir; Windows ones next to windows.installed, shared with install.ps1.
+_checks = {}
+
+
+def monitoring(os_):
+    if os_ not in _checks:
+        if os_ == 'linux':
+            cmd, kw = [os.path.join(DOT, 'linux', 'monitoring-check')], {}
+        else:
+            ps1 = subprocess.run(['wslpath', '-w', os.path.join(DOT, 'windows', 'monitoring-check.ps1')],
+                                 capture_output=True, text=True).stdout.strip()
+            cmd, kw = ['powershell.exe', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', ps1], \
+                {'cwd': '/mnt/c'}
+        r = subprocess.run(cmd, capture_output=True, text=True, **kw) if cmd[-1] else None
+        if r is None or r.returncode != 0:  # a failed check is no clean bill: report it as a finding, so it asks
+            err = (r.stderr.strip().splitlines() or [''])[-1][:100] if r else 'no path to the script'
+            _checks[os_] = [f'the check itself failed ({err}): what runs here is unknown']
+        else:
+            _checks[os_] = sorted({l.strip() for l in r.stdout.splitlines() if l.strip()})
+    return _checks[os_]
+
+
+def private_ok(key, why, os_, answers_path, installed=False):
+    """May the `private:` entry `key` be installed here? why: its private: text (what it keeps)."""
+    found = monitoring(os_)
+    if not found:
+        return True
+    # utf-8-sig: Windows PowerShell writes a BOM
+    answers = json.load(open(answers_path, encoding='utf-8-sig')) if os.path.exists(answers_path) else {}
+    a = answers.get(key) or {}
+    if installed and a.get('found') == found and a.get('install'):
+        return True
+    if not installed and a.get('found') == found:
+        if not a.get('install'):
+            log(f'{key}: not installed, as you chose (this machine is monitored; to be asked again, delete '
+                f'{answers_path.replace(HOME, "~")})')
+        return a.get('install', False)
+
+    def keep(ok):
+        answers[key] = {'found': found, 'install': ok}
+        os.makedirs(os.path.dirname(answers_path), exist_ok=True)
+        with open(answers_path, 'w') as f:
+            json.dump(answers, f, indent=1)
+        return ok
+    status('')
+    lines = '\n'.join(f'    {f}' for f in found)
+    if installed:  # already here (installed before, or by hand): say so once per change, don't ask
+        warn(f'{key} is installed, and this machine now shows:\n{lines}\n  {why}: whoever runs these may see it')
+        return keep(True)
+    print(f'\n{YELL}{key}{RST}: {why}. This machine shows:\n{lines}\n'
+          'Software like this can read this machine\'s files or record its screen, so whoever runs it (e.g. your '
+          'employer) could see them. Nothing found would be no proof either: agents can be hidden, or added later.',
+          flush=True)
+    if YES:
+        warn(f'{key}: not installed (--yes never says yes to this; re-run without --yes to choose)')
+        return False
+    try:
+        with open('/dev/tty', 'w') as out, open('/dev/tty') as inp:
+            out.write(f'Install {key} anyway? [y/N] ')
+            out.flush()
+            return keep(inp.readline().strip().lower() in ('y', 'yes'))
+    except OSError:
+        warn(f'{key}: no terminal to ask; not installed (re-run interactively to choose)')
         return False
 
 
@@ -262,18 +335,45 @@ def skip(p):
 
 # `tools:` under a language entry: how that language's own installer checks, installs and removes a tool.
 # {n}: tool name (go: module path), {b}: its command (go: last path part), {v}: version ('' if none)
-GO, UV, GEM, REHASH = '/usr/local/go/bin/go', '~/.local/bin/uv', '~/.rbenv/shims/gem', '~/.rbenv/bin/rbenv rehash'
+# go, gem: mise's global Go and Ruby, run from ~ so a project's version file in the current directory doesn't pick another
+# MISE_EXEC_AUTO_INSTALL=false: a check never installs a missing version (the go and ruby entries install them)
+MX = 'cd && MISE_EXEC_AUTO_INSTALL=false ~/.local/bin/mise exec'
+GO, UV = MX + ' go -- go', '~/.local/bin/uv'
+GEM, RESHIM = MX + ' ruby -- gem', '~/.local/bin/mise reshim'
 KREW = '~/.krew/bin/kubectl-krew'
 TOOLKITS = {
     'krew': dict(check=KREW + ' list 2>/dev/null | grep -qx {n}', install=KREW + ' install {n}',
                  uninstall=KREW + ' uninstall {n}'),  # kubectl plugins, in ~/.krew (piped, `krew list` prints names)
     'go': dict(check='test -x ~/go/bin/{b}', install=GO + ' install {n}@{v}', uninstall='rm -f ~/go/bin/{b}',
                default='latest'),
-    'pyenv': dict(check=UV + " tool list | grep -q '^{n} '", install=UV + ' tool install {qs}',
-                  uninstall=UV + ' tool uninstall {n}'),  # uv: one isolated env per tool, command in ~/.local/bin
-    'rbenv': dict(check=GEM + " list -i '^{n}$' {gv}", install=GEM + ' install --no-document {n} {gv} && ' + REHASH,
-                  uninstall=GEM + ' uninstall -a -x {n} && ' + REHASH),  # into the global Ruby
+    # one isolated env per tool, command in ~/.local/bin. Installed = listed and its Python still runs: an env built
+    # on a Python that's gone (e.g. pyenv's, deleted) is reinstalled
+    'uv': dict(check=UV + " tool list | grep -q '^{n} ' && \"$(" + UV + " tool dir)\"/{n}/bin/python -c ''",
+               install=UV + ' tool install --reinstall {qs}', uninstall=UV + ' tool uninstall {n}'),
+    'ruby': dict(check=GEM + " list -i '^{n}$' {gv}", install=GEM + ' install --no-document {n} {gv} && ' + RESHIM,
+                 uninstall=GEM + ' uninstall -a -x {n} && ' + RESHIM),  # into the global Ruby
 }
+# tools: that moved to another entry: old record prefix -> new (pyenv's uv tools, before mise replaced pyenv)
+MOVED_TOOLS = {'pyenv:': 'uv:'}
+# entries whose install method changed under the same name: a record still holding the old uninstall step moves to
+# the new name, so the run offers to uninstall the old install (as for a removed entry) and installs the new one
+RETIRED = {('go', 'sudo rm -rf /usr/local/go'): 'go (/usr/local/go)'}
+# old installs an entry replaced, and that one: offered for uninstall only once the replacement is installed, with a
+# question of their own (they hold your own versions, virtualenvs, gems); no keeps them for good, no longer managed
+REPLACED_BY = {'pyenv': 'python', 'rbenv': 'ruby', 'go (/usr/local/go)': 'go'}
+
+
+def migrate(record):
+    """Rewrite an older record in place for today's packages.yaml (MOVED_TOOLS, RETIRED)."""
+    for n in list(record):
+        for old, new in MOVED_TOOLS.items():
+            if n.startswith(old):
+                moved = record.pop(n)
+                record.setdefault(new + n[len(old):], moved)  # already under the new name: just drop the old one
+    for (n, old), new in RETIRED.items():
+        if (record.get(n) or {}).get('uninstall') == old and new not in record:
+            record[new] = record.pop(n)
+    return record
 
 
 def tools(p):
@@ -327,7 +427,8 @@ def add_repo(r, arch, codename):
 
 def fill(s, tag, arch):
     m = platform.machine()
-    return s.format(tag=tag, version=tag.lstrip('v'), arch=arch, m=m, xarch='x86_64' if arch == 'amd64' else arch)
+    return s.format(tag=tag, version=tag.lstrip('v'), arch=arch, m=m, xarch='x86_64' if arch == 'amd64' else arch,
+                    x64='x64' if arch == 'amd64' else arch)
 
 
 def latest_tag(p):  # the releases/latest redirect, not the API: no rate limit
@@ -366,14 +467,52 @@ def drop_repo(name):
         run(f'apt repo {name} removed', SUDO + ['rm', '-f'] + files)
 
 
+def check_linux():
+    """--check: what a run would install (missing) or uninstall (recorded, no longer listed). Read-only."""
+    path = os.path.join(STATE, 'linux.json')
+    record = migrate(json.load(open(path)) if os.path.exists(path) else {})  # as a run would see it; not saved
+    every = load('linux')
+    pkgs = [p for p in every if wanted(p)]
+    installed, issues = dpkg_installed(), []
+    answers = json.load(open(PRIVATE, encoding='utf-8-sig')) if os.path.exists(PRIVATE) else {}
+    for i, p in enumerate(pkgs, 1):
+        name = p['name']
+        status(f'checking {i}/{len(pkgs)}  {name}')
+        have = (name in installed or skip(p)) if kind(p) == 'apt' else skip(p)
+        if not have and kind(p) == 'apt' and not quiet(['apt-cache', 'show', name]):
+            log(f'{name}: not available on this release (a run skips it too)')
+            continue
+        if not have:
+            a = answers.get(name) or {}
+            if p.get('private') and a.get('install') is False:
+                log(f'{name}: not installed, as you chose (monitored machine)')
+            else:
+                issues.append(f'not installed: {name}')
+            continue
+        for tid, check, _, _ in tools(p):
+            if not quiet(['bash', '-c', check]):
+                issues.append(f'not installed: {tid}')
+    kept = [p for p in every if not dropped(p)]
+    names = {p['name'] for p in kept} | {t[0] for p in kept for t in tools(p)}
+    for n in sorted(n for n in record if n not in names and n not in PROTECTED):
+        issues.append(f'would be offered for uninstall (replaced by {REPLACED_BY[n]}): {n}' if n in REPLACED_BY
+                      else f'would be uninstalled (no longer in packages.yaml): {n}')
+    status('')
+    for m in issues:
+        warn(f'packages: {m}')
+    return not issues
+
+
 def linux():
+    if CHECK:
+        return check_linux()
     arch = subprocess.run(['dpkg', '--print-architecture'], capture_output=True, text=True).stdout.strip()
     codename = subprocess.run(['bash', '-c', '. /etc/os-release && echo "$VERSION_CODENAME"'],
                               capture_output=True, text=True).stdout.strip()
     every = [] if PURGE else load('linux')
     pkgs = [p for p in every if wanted(p)]
     path = os.path.join(STATE, 'linux.json')
-    record = json.load(open(path)) if os.path.exists(path) else {}
+    record = migrate(json.load(open(path)) if os.path.exists(path) else {})
     before, apt = None, []
 
     def save():  # at exit, also on Ctrl-C, so what this run installed can still be uninstalled
@@ -433,6 +572,8 @@ def linux():
                 mine = mine or (name in after and name in manual and (ADOPT or name not in before))
             elif skip(p):
                 mine = mine or ADOPT
+                if p.get('private'):
+                    private_ok(name, p['private'], 'linux', PRIVATE, installed=True)
                 if 'update' in p and not run(f'{name} update', p['update'], p.get('interactive', False)):
                     warn(f'{name}: update failed')
                 # our GitHub binaries: fetch again when a newer release is out (not one installed some other way)
@@ -444,6 +585,8 @@ def linux():
                         done(f'{name} {tag}')
                         mine = True
             else:
+                if p.get('private') and not private_ok(name, p['private'], 'linux', PRIVATE):
+                    continue
                 if k == 'github':
                     tag = latest_tag(p)
                     status(f'{name} {tag}')
@@ -503,7 +646,27 @@ def linux():
         warn(f'{n}: other installed packages need it; kept, as an ordinary dependency (no longer tracked)')
         quiet(SUDO + ['apt-mark', 'auto', n])
         del record[n]
+    approved = []
+    replaced = [n for n in gone if n in REPLACED_BY and not PURGE]
+    gone = [n for n in gone if n not in replaced]
+    byname = {p['name']: p for p in pkgs}
+    for n in list(replaced):
+        new = byname.get(REPLACED_BY[n])
+        if new is None or not (REPLACED_BY[n] in record or skip(new)):
+            warn(f'{n}: kept until its replacement ({REPLACED_BY[n]}) is installed')
+            replaced.remove(n)
+    if replaced:
+        if confirm('Replaced installs', replaced, detail='  Their own versions, virtualenvs and gems go with them. '
+                   'No keeps them, no longer managed by this installer.'):
+            approved += replaced
+        else:
+            for n in replaced:
+                log(f'{n}: kept; no longer managed (remove it by hand when you like)')
+                del record[n]
     if gone and confirm('Linux packages', gone):
+        approved += gone
+    gone = approved
+    if gone:
         removed_repos = {n: record[n].get('repo') for n in gone}
         if apt_gone:
             if apt_remove_safely(apt_gone, (doc().get('settings') or {}).get('autoremove', True)):
@@ -537,6 +700,8 @@ def linux():
             if repo and n not in record and repo not in kept_repos:
                 drop_repo(repo)
 
+    if PURGE and os.path.exists(PRIVATE):
+        os.remove(PRIVATE)
     # the apt repos it added: all with --purge, an opt-in desktop's once it's dropped
     for r in [p['repo'] for p in load('linux') if 'repo' in p and (PURGE or dropped(p))]:
         drop_repo(r['name'])
@@ -557,6 +722,24 @@ def windows():
     path = os.path.join(subprocess.run(['wslpath', appdata], capture_output=True, text=True).stdout.strip(),
                         'dotfiles', 'windows.installed')
     record = set(open(path).read().split()) if os.path.exists(path) else set()
+    answers = os.path.join(os.path.dirname(path), 'private.json')  # shared with install.ps1
+    if CHECK:
+        said = json.load(open(answers, encoding='utf-8-sig')) if os.path.exists(answers) else {}
+        missing = []
+        for p in load('windows'):
+            if ('font' in p and font_installed(p['font'])) or quiet(winget('list', '--id', p['id']), cwd='/mnt/c'):
+                continue
+            if p.get('private') and (said.get(p['id']) or {}).get('install') is False:
+                log(f"{p['id']}: not installed, as you chose (monitored machine)")
+            else:
+                missing.append(p['id'])
+        for pid in missing:
+            warn(f'Windows: not installed: {pid}')
+        listed = {p['id'] for p in load('windows')}
+        leaving = sorted(i for i in record if i not in listed and i not in PROTECTED)
+        for pid in leaving:
+            warn(f'Windows: would be uninstalled (no longer in packages.yaml): {pid}')
+        return not (missing or leaving)
 
     def save():  # at exit, also on Ctrl-C
         os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -571,6 +754,10 @@ def windows():
         if ('font' in p and font_installed(p['font'])) or quiet(winget('list', '--id', pid), cwd='/mnt/c'):
             if ADOPT:
                 record.add(pid)
+            if p.get('private'):
+                private_ok(pid, p['private'], 'windows', answers, installed=True)
+            continue
+        if p.get('private') and not private_ok(pid, p['private'], 'windows', answers):
             continue
         if not run(f'{pid} (Windows)', winget('install', '--id', pid, '--accept-package-agreements'), cwd='/mnt/c'):
             warn(f'{pid} install failed; install it by hand')
@@ -578,6 +765,8 @@ def windows():
         else:
             record.add(pid)
 
+    if PURGE and os.path.exists(answers):
+        os.remove(answers)
     gone = [i for i in record if i not in {p['id'] for p in every}]
     record -= {i for i in gone if i in PROTECTED}
     gone = [i for i in gone if i not in PROTECTED]
@@ -593,7 +782,9 @@ if __name__ == '__main__':
     if FX:
         threading.Thread(target=spinner, daemon=True).start()
     choose()
-    {'linux': linux, 'windows': windows}[sys.argv[1]]()
+    ok = {'linux': linux, 'windows': windows}[sys.argv[1]]()
     status('')
     if failed:
         warn('failed: ' + ', '.join(failed))
+    if CHECK and ok is False:
+        sys.exit(1)

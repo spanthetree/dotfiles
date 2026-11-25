@@ -14,7 +14,7 @@ Everything this repo installs or configures, with links. The list itself is [`pa
 | tmux | terminal multiplexer under byobu | https://github.com/tmux/tmux |
 | tmux-resurrect, tmux-continuum | save and restore tabs | https://github.com/tmux-plugins/tmux-resurrect · https://github.com/tmux-plugins/tmux-continuum |
 | tmux-fingers | `F12 F`: label URLs, paths, IPs, hashes on screen and copy one | https://github.com/Morantron/tmux-fingers |
-| carapace | completions for ~1000 commands | https://github.com/carapace-sh/carapace-bin |
+| carapace | completions for commands zsh has none for | https://github.com/carapace-sh/carapace-bin |
 | navi | cheatsheet picker (`Ctrl-G`), with denisidoro/cheats | https://github.com/denisidoro/navi |
 | kitten (`icat`) | kitty's helper: images in the terminal | https://sw.kovidgoyal.net/kitty/kittens/icat/ |
 | vim | editor | https://www.vim.org |
@@ -79,14 +79,15 @@ vim plugins (all on GitHub): [ack.vim](https://github.com/mileszs/ack.vim), [vim
 | websocat | netcat for WebSockets | https://github.com/vi/websocat |
 | usql | one SQL CLI for many databases | https://github.com/xo/usql |
 | kcat | Kafka CLI | https://github.com/edenhill/kcat |
-| mise | tool versions per project | https://mise.jdx.dev |
+| mise | Python, Ruby and Go versions, global and per project | https://mise.jdx.dev |
 | VS Code | editor | https://code.visualstudio.com |
 | httpstat | curl with a timing breakdown | https://github.com/reorx/httpstat |
-| Python, pyenv, uv, virtualenvwrapper | Python versions, packages, venvs | https://www.python.org · https://github.com/pyenv/pyenv · https://github.com/astral-sh/uv · https://virtualenvwrapper.readthedocs.io |
-| rbenv | Ruby versions | https://github.com/rbenv/rbenv |
-| Go, gopls | Go and its language server | https://go.dev · https://pkg.go.dev/golang.org/x/tools/gopls |
+| Python, uv, virtualenvwrapper | packages, tools, venvs | https://www.python.org · https://github.com/astral-sh/uv · https://virtualenvwrapper.readthedocs.io |
+| Ruby | language (versions from mise) | https://www.ruby-lang.org |
+| Go, gopls | Go (versions from mise) and its language server | https://go.dev · https://pkg.go.dev/golang.org/x/tools/gopls |
+| rustup | Rust toolchains (rustc, cargo, clippy, rustfmt, rust-analyzer) | https://rustup.rs |
 | nvm | Node versions | https://github.com/nvm-sh/nvm |
-| build-essential and `-dev` libraries | compilers and headers for building Python and Ruby | https://packages.ubuntu.com |
+| build-essential and `-dev` libraries | compilers and headers for native extensions, and Python or Ruby versions with no prebuilt build | https://packages.ubuntu.com |
 
 ## Kubernetes, cloud, containers
 
@@ -96,6 +97,7 @@ vim plugins (all on GitHub): [ack.vim](https://github.com/mileszs/ack.vim), [vim
 | kubectx / kubens | switch contexts / namespaces | https://github.com/ahmetb/kubectx |
 | k9s | Kubernetes TUI | https://github.com/derailed/k9s |
 | stern | multi-pod logs | https://github.com/stern/stern |
+| kind | throwaway local Kubernetes clusters in Docker (upstream Kubernetes; also a containerlab node kind) | https://kind.sigs.k8s.io |
 | krew + neat, tree, view-secret, node-shell, df-pv, who-can | kubectl plugins | https://krew.sigs.k8s.io |
 | kubeshark | cluster API traffic viewer | https://github.com/kubeshark/kubeshark |
 | helm, helm-diff, helmfile | Kubernetes packages, upgrade diffs, declared releases | https://helm.sh · https://github.com/databus23/helm-diff · https://github.com/helmfile/helmfile |
@@ -121,6 +123,8 @@ vim plugins (all on GitHub): [ack.vim](https://github.com/mileszs/ack.vim), [vim
 | geoipupdate | keeps MaxMind's GeoLite2 database current (for trippy's map) | https://github.com/maxmind/geoipupdate |
 | SuzieQ (`suzieq-cli`, `suzieq-gui`, `sq-poller`) | polls routers, switches and Linux hosts over SSH; query interfaces, routes, ARP, MACs and paths across them | https://github.com/netenglabs/suzieq |
 | rustnet | network monitor TUI: connections per process (PPA domcyrus/rustnet) | https://github.com/domcyrus/rustnet |
+| autossh | ssh that reconnects by itself, for tunnels and port forwards (`-L`, `-R`, `-D`) | https://www.harding.motd.ca/autossh/ |
+| gitleaks | finds secrets in git changes (this repo's pre-commit hook) | https://github.com/gitleaks/gitleaks |
 | sshs | pick a host from `~/.ssh/config` and connect (`sshs` alias adds SynthWave colours) | https://github.com/quantumsheep/sshs |
 | termscp | TUI file transfer and explorer: SFTP, SCP, FTP, S3, SMB, WebDAV | https://github.com/veeso/termscp |
 | gping | ping, graphed | https://github.com/orf/gping |
@@ -151,6 +155,7 @@ vim plugins (all on GitHub): [ack.vim](https://github.com/mileszs/ack.vim), [vim
 | Software | What | Link |
 |---|---|---|
 | Joplin (`joplin`, desktop app on Linux and Windows) | Markdown notes and to-dos, synced through Joplin Cloud, OneDrive, Dropbox, Nextcloud/WebDAV or S3 | https://joplinapp.org |
+| Beeper (Linux desktop and Windows) | one app for WhatsApp, Signal, Telegram, Matrix and more | https://www.beeper.com |
 
 ## AI
 
