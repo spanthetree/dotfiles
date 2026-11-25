@@ -2,6 +2,12 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [SemVer](https://semver.org/), tagged `vX.Y.Z`.
 
+## [5.0.1] - 2026-11-25
+
+### Fixed
+- Native Windows installs (`install.cmd` on Windows) failed reading `packages.yaml` since 4.3.0: powershell-yaml misreads an inline `{...}` entry whose quoted value has braces in it (`${XDG_STATE_HOME:-...}`). Those entries are now written one key per line (same values), and `tests/lint.sh` rejects inline entries. Installs from WSL were not affected (they read the file with Python).
+- CI's PowerShell syntax check passed its files to `pwsh -Command`, which read them as code.
+
 ## [5.0.0] - 2026-11-25
 
 Upgrading from 4.x: `git -C ~/dotfiles pull && ~/dotfiles/install.cmd`, then open a new shell. Python, Ruby and Go now come from mise: zsh no longer loads pyenv or rbenv, and once mise's versions are in, the installer asks whether to remove `~/.pyenv`, `~/.rbenv` and `/usr/local/go`. Move what you built on them by hand first: virtualenvs, gems in rbenv's Ruby, older Pythons (`mise use -g python@<version>`). The pre-commit privacy check turns on with that run; add your own patterns to `~/.config/dotfiles/private-patterns`.
@@ -330,6 +336,7 @@ Existing machines: run `install.sh --packages --adopt` once (so removing a packa
 ### Added
 - Initial repo: zsh (antidote, replaces Prezto), Starship prompt and status config, byobu 4-row status bar, vim (vim-plug, replaces pathogen), Windows Terminal settings merge, `install.sh` with backup-then-link.
 
+[5.0.1]: https://github.com/spanthetree/dotfiles/compare/v5.0.0...v5.0.1
 [5.0.0]: https://github.com/spanthetree/dotfiles/compare/v4.4.0...v5.0.0
 [4.4.0]: https://github.com/spanthetree/dotfiles/compare/v4.3.0...v4.4.0
 [4.3.0]: https://github.com/spanthetree/dotfiles/compare/v4.2.0...v4.3.0

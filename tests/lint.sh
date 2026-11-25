@@ -20,7 +20,21 @@ else echo "skip  zsh syntax (no zsh)"; fi
 check "python syntax" /usr/bin/python3 -I -c 'import ast, sys; [ast.parse(open(f).read(), f) for f in sys.argv[1:]]' "${py[@]}"
 check "packages.yaml loads" /usr/bin/python3 -I -c 'import yaml; d = yaml.safe_load(open("packages.yaml")); assert d["linux"] and d["windows"]'
 check "Windows Terminal merge" /usr/bin/python3 -I windows/terminal/test_merge.py
+# packages.yaml: block style only. Windows' parser (powershell-yaml) misreads an inline {...} entry whose quoted
+# value has braces in it (`${VAR:-x}`), so a native Windows install couldn't read the file
+check "packages.yaml: no inline {...} entries" bash -c '! grep -nE "^[[:space:]]*- \{" packages.yaml'
 if command -v pwsh >/dev/null; then
-  check "PowerShell syntax" pwsh -NoProfile -Command '$bad = 0; foreach ($f in $args) { $e = $null; [void][System.Management.Automation.Language.Parser]::ParseFile($f, [ref]$null, [ref]$e); if ($e) { $e | ForEach-Object { "$f`: $_" }; $bad = 1 } }; exit $bad' "${ps[@]}"
+  pscheck=$(mktemp --suffix=.ps1)
+  cat >"$pscheck" <<'PS'
+$bad = 0
+foreach ($f in $args) {
+  $e = $null
+  [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $f), [ref]$null, [ref]$e)
+  if ($e) { $e | ForEach-Object { "${f}: $_" }; $bad = 1 }
+}
+exit $bad
+PS
+  check "PowerShell syntax" pwsh -NoProfile -File "$pscheck" "${ps[@]}"
+  command rm -f "$pscheck"
 else echo "skip  PowerShell syntax (no pwsh)"; fi
 exit $fail

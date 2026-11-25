@@ -766,7 +766,8 @@ linux:
     script: sudo snap install spotify
     uninstall: sudo snap remove spotify
 
-  - {name: libfuse2t64, when: desktop}   # AppImages (Joplin's desktop app) need FUSE 2
+  - name: libfuse2t64          # AppImages (Joplin's desktop app) need FUSE 2
+    when: desktop
 
   - name: joplin-desktop       # Joplin's own installer: AppImage in ~/.joplin, menu entry, icon; re-run, it updates
     when: desktop
@@ -822,22 +823,33 @@ linux:
   # Japanese input under Hyprland and COSMIC (installed or chosen: --hyprland / --cosmic): fcitx5 + Mozc, Ctrl-Space (started by linux/hypr/dotfiles.lua, and under
   # COSMIC by linux/cosmic/fcitx5.desktop). GNOME keeps ibus (ibus-mozc below): with ibus installed, im-config's
   # automatic choice stays ibus. Only where Hyprland or COSMIC is.
-  - {name: fcitx5, when: desktop, skip_if: &no-fcitx '! command -v Hyprland >/dev/null && ! command -v cosmic-session >/dev/null && [ ! -e "${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/desktop-hyprland" ] && [ ! -e "${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/desktop-cosmic" ]'}
+  - name: fcitx5
+    when: desktop
+    skip_if: &no-fcitx '! command -v Hyprland >/dev/null && ! command -v cosmic-session >/dev/null && [ ! -e "${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/desktop-hyprland" ] && [ ! -e "${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/desktop-cosmic" ]'
 
   # Mozc (Japanese) for fcitx5
-  - {name: fcitx5-mozc, when: desktop, skip_if: *no-fcitx}
+  - name: fcitx5-mozc
+    when: desktop
+    skip_if: *no-fcitx
 
   # GTK 3/4 and Qt 5/6 modules, for XWayland and older apps. The metapackage itself: removing one of its parts
   # by name would make apt mark the other parts manual, and autoremove would leave them
-  - {name: fcitx5-frontend-all, when: desktop, skip_if: *no-fcitx}
+  - name: fcitx5-frontend-all
+    when: desktop
+    skip_if: *no-fcitx
 
-  - {name: fcitx5-config-qt, when: desktop, skip_if: *no-fcitx}       # fcitx5-configtool: input methods, keys
+  - name: fcitx5-config-qt     # fcitx5-configtool: input methods, keys
+    when: desktop
+    skip_if: *no-fcitx
 
   # Japanese input under Ubuntu's GNOME: ibus + Mozc, Ctrl-Space too (input sources and key set by linux/install.sh)
-  - {name: ibus-mozc, when: desktop, skip_if: '! command -v gnome-shell >/dev/null'}
+  - name: ibus-mozc
+    when: desktop
+    skip_if: '! command -v gnome-shell >/dev/null'
 
   # --- screen recording
-  - {name: slurp, when: desktop}   # picks the area for Ctrl-Alt-Shift-A screen recording (linux/desktop/record.sh)
+  - name: slurp                # picks the area for Ctrl-Alt-Shift-A screen recording (linux/desktop/record.sh)
+    when: desktop
 
   # ================================================================================================================
   # Hyprland (opt-in: install.cmd --hyprland)
@@ -1016,11 +1028,15 @@ linux:
       { cargo uninstall --root ~/.local hyprshell || rm -f ~/.local/bin/hyprshell; } &&
       "$DOT/linux/apt-deps" remove cargo libgtk-4-dev libadwaita-1-dev libgtk4-layer-shell-dev
 
-  - {name: wf-recorder, when: in-hyprland, skip_if: &no-hyprland '! command -v Hyprland >/dev/null && [ ! -e "${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/desktop-hyprland" ]'}   # Ctrl-Alt-Shift-R screen recording (linux/desktop/record.sh)
+  - name: wf-recorder          # Ctrl-Alt-Shift-R screen recording (linux/desktop/record.sh)
+    when: in-hyprland
+    skip_if: &no-hyprland '! command -v Hyprland >/dev/null && [ ! -e "${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/desktop-hyprland" ]'
 
   # monitor layouts that switch by themselves on plug/unplug (docking). Profiles name this machine's screens, so they
   # live in the untracked ~/.config/kanshi/config; linux/hypr/dotfiles.lua starts kanshi only when that file exists
-  - {name: kanshi, when: in-hyprland, skip_if: *no-hyprland}
+  - name: kanshi
+    when: in-hyprland
+    skip_if: *no-hyprland
 
   # ================================================================================================================
   # COSMIC (opt-in: install.cmd --cosmic)
