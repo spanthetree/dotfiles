@@ -41,7 +41,7 @@ On a Linux desktop (not WSL) it also:
 - sets up Japanese input with `Ctrl-Space`: ibus + Mozc on GNOME (the input-source switch moves there from `Super-Space`), fcitx5 + Mozc under Hyprland and COSMIC
 - adds this repo's layer to Hyprland wherever Hyprland is installed (below), however it got there
 
-On every system it points git's pager at delta via `include.path` to `linux/git/delta.gitconfig`, and turns on this repo's privacy check before commits (`core.hooksPath` in the clone; see [development](development.md#privacy-check-before-commits)). Python, Ruby and Go versions come from mise (`mise use -g python@3.13` changes the global one; `.python-version`, `.ruby-version` and `mise.toml` set one per project).
+On every system it adds three lines at the end of `~/.ssh/config` that include the repo's shared SSH defaults (see [SSH](#ssh) below), points git's pager at delta via `include.path` to `linux/git/delta.gitconfig`, and turns on this repo's privacy check before commits (`core.hooksPath` in the clone; see [development](development.md#privacy-check-before-commits)). Python, Ruby and Go versions come from mise (`mise use -g python@3.13` changes the global one; `.python-version`, `.ruby-version` and `mise.toml` set one per project).
 
 ## Hyprland
 
@@ -89,6 +89,14 @@ With the repo already cloned on Windows, `install.cmd` from it does the same.
 
 The script installs the `powershell-yaml` module (current user) to read `packages.yaml`. Re-running is safe. Two clones exist: Windows (YASB config) and WSL (everything else).
 
+## SSH
+
+Your hosts stay in your own `~/.ssh/config`. The installer adds three lines at its end that include two files from [`linux/ssh`](../linux/ssh). They're copied to `~/.ssh` with mode 600, not linked: ssh refuses a config file that others can write, and the repo's files are group-writable under Ubuntu's umask. ssh keeps the first value it finds for each setting, so anything you set yourself wins.
+
+- **Keepalives for every host** (`dotfiles.conf`): a dead connection is noticed within about 90 seconds and ends, instead of freezing the terminal.
+- **Connection reuse, for hosts you tag** (`dotfiles-mux.conf`, OpenSSH 9.4+): a second `ssh`, `scp`, `rsync` or git to the same host opens at once over the first connection, kept 10 minutes after the last session. Turn it on with `Tag mux` under a `Host` block (or `Host *`). It's off by default because network gear often allows one session per connection, and a kept-open connection holds a vty line. `ssh -O exit <host>` closes one.
+- **`tun`**: an SSH tunnel that rebuilds itself (autossh), with no shell: `tun bastion -D 1080` (SOCKS proxy), `tun db-jump -L 5432:db.internal:5432`, `tun lab -R 8080:localhost:3000`. It reconnects after a dropped link, stops if the first connection fails (so a wrong password isn't retried), and never shares a connection. Ctrl-C stops it.
+
 ## Uninstall
 
 ```sh
@@ -103,7 +111,7 @@ On Linux or in WSL it:
 1. Uninstalls the packages this installer installed (it lists them and asks), and the apt repos it added. Under WSL, also the Windows apps it installed. Packages that were already there stay, and so do core ones (git, curl, zsh, python3...).
 2. Removes the config links and the plugins it cloned (antidote, tmux-resurrect, tmux-continuum, vim-plug and vim plugins).
 3. Puts back what the links replaced, from the oldest backup (from before the first install).
-4. Removes the delta include from `~/.gitconfig` and turns the repo's pre-commit hook off. Under WSL, it restores Windows Terminal's settings, `.wslconfig` and the YASB config from before the first install (today's Windows Terminal settings are backed up first), clears `YASB_CONFIG_HOME` and turns off YASB's autostart. On a desktop it removes the kitty includes, the edits to the Hyprland desktop setup's files (each marked `// dotfiles` or `# dotfiles`), the COSMIC settings and theme (unless changed in COSMIC Settings since), and puts GNOME's input sources back.
+4. Removes the delta include from `~/.gitconfig`, the SSH include lines and `~/.ssh/dotfiles*.conf`, and turns the repo's pre-commit hook off. Under WSL, it restores Windows Terminal's settings, `.wslconfig` and the YASB config from before the first install (today's Windows Terminal settings are backed up first), clears `YASB_CONFIG_HOME` and turns off YASB's autostart. On a desktop it removes the kitty includes, the edits to the Hyprland desktop setup's files (each marked `// dotfiles` or `# dotfiles`), the COSMIC settings and theme (unless changed in COSMIC Settings since), and puts GNOME's input sources back.
 
 Left for you: `chsh -s /bin/bash` if you want another shell, and deleting the clone(s). Backups stay in `~/.dotfiles-backup`.
 
@@ -117,6 +125,7 @@ Left for you: `chsh -s /bin/bash` if you want another shell, and deleting the cl
 | `~/.suzieq/inventory.yml` | devices for SuzieQ to poll (`sq-poller -I ~/.suzieq/inventory.yml`) |
 | `~/.config/GeoIP.conf` | MaxMind account ID and license key for trippy's GeoIP data; written by the installer when you enter them |
 | `~/.config/byobu/disable-autolaunch` | touch it to stop byobu auto-starting |
+| `~/.ssh/config` | your SSH hosts (`Tag mux` turns on connection reuse for one); the installer only adds its three include lines at the end |
 | `~/.config/mise/config.toml` | your global Python, Ruby and Go versions (`mise use -g`); the installer sets them only while none is set |
 | `~/.config/dotfiles/private-patterns` | your own patterns for the pre-commit privacy check: name, email, hostnames, employer, internal domains (one regex per line) |
 | `~/.local/state/dotfiles/private.json` | your answers to "install anyway?" for Beeper on a monitored machine (Windows: `%LOCALAPPDATA%\dotfiles\private.json`); delete to be asked again |

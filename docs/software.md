@@ -123,7 +123,7 @@ vim plugins (all on GitHub): [ack.vim](https://github.com/mileszs/ack.vim), [vim
 | geoipupdate | keeps MaxMind's GeoLite2 database current (for trippy's map) | https://github.com/maxmind/geoipupdate |
 | SuzieQ (`suzieq-cli`, `suzieq-gui`, `sq-poller`) | polls routers, switches and Linux hosts over SSH; query interfaces, routes, ARP, MACs and paths across them | https://github.com/netenglabs/suzieq |
 | rustnet | network monitor TUI: connections per process (PPA domcyrus/rustnet) | https://github.com/domcyrus/rustnet |
-| autossh | ssh that reconnects by itself, for tunnels and port forwards (`-L`, `-R`, `-D`) | https://www.harding.motd.ca/autossh/ |
+| autossh | ssh that reconnects by itself; `tun` uses it for tunnels that rebuild themselves | https://www.harding.motd.ca/autossh/ |
 | gitleaks | finds secrets in git changes (this repo's pre-commit hook) | https://github.com/gitleaks/gitleaks |
 | sshs | pick a host from `~/.ssh/config` and connect (`sshs` alias adds SynthWave colours) | https://github.com/quantumsheep/sshs |
 | termscp | TUI file transfer and explorer: SFTP, SCP, FTP, S3, SMB, WebDAV | https://github.com/veeso/termscp |

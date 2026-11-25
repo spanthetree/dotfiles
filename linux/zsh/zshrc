@@ -104,6 +104,8 @@ netshoot() {
   if (( $# )); then docker run --rm -it --net "container:$1" nicolaka/netshoot "${@:2}"
   else docker run --rm -it --net host nicolaka/netshoot; fi
 }
+# tun (~/.local/bin/tun, linux/ssh/tun): an SSH tunnel that rebuilds itself. Completes host names like ssh
+(( $+functions[compdef] )) && compdef tun=ssh
 knetshoot() {
   (( $# )) || { print -u2 "usage: knetshoot <pod> [-n namespace] [-c container ...]"; return 2 }
   kubectl debug -it "$1" --image=nicolaka/netshoot "${@:2}"

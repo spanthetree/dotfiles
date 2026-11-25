@@ -2,6 +2,12 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [SemVer](https://semver.org/), tagged `vX.Y.Z`.
 
+## [5.1.0] - 2026-11-25
+
+### Added
+- `tun`: SSH tunnels that rebuild themselves (autossh): `tun bastion -D 1080`, `tun db-jump -L 5432:db.internal:5432`, `tun lab -R 8080:localhost:3000`. No shell; reconnects after a dropped link; stops if the first connection fails (no retry loop on a wrong password), or at once if the port is taken. Completes host names like ssh.
+- Shared SSH defaults, included at the end of `~/.ssh/config` so your own settings win: keepalives for every host (a dead connection ends within ~90s instead of freezing), and connection reuse for hosts you tag with `Tag mux` (OpenSSH 9.4+). Reuse is opt-in because network gear often allows one session per connection and a kept-open connection holds a vty line. The files are copied to `~/.ssh` with mode 600, since ssh refuses group-writable config files. `--uninstall` removes them; `--check` checks them.
+
 ## [5.0.1] - 2026-11-25
 
 ### Fixed
@@ -336,6 +342,7 @@ Existing machines: run `install.sh --packages --adopt` once (so removing a packa
 ### Added
 - Initial repo: zsh (antidote, replaces Prezto), Starship prompt and status config, byobu 4-row status bar, vim (vim-plug, replaces pathogen), Windows Terminal settings merge, `install.sh` with backup-then-link.
 
+[5.1.0]: https://github.com/spanthetree/dotfiles/compare/v5.0.1...v5.1.0
 [5.0.1]: https://github.com/spanthetree/dotfiles/compare/v5.0.0...v5.0.1
 [5.0.0]: https://github.com/spanthetree/dotfiles/compare/v4.4.0...v5.0.0
 [4.4.0]: https://github.com/spanthetree/dotfiles/compare/v4.3.0...v4.4.0

@@ -25,7 +25,7 @@ The same groups as `packages.yaml`, where every entry has a comment saying what 
 | Dev tools | gh, delta, lazygit, difftastic, gitleaks, shellcheck, just, watchexec, hyperfine, scc, d2, grpcurl, websocat, usql, kcat, sops + age, step |
 | Containers and Kubernetes | Docker, kubectl + krew plugins, kubectx, k9s, stern, kubeshark, helm + helm-diff, helmfile, kind, containerlab |
 | Cloud and IaC | AWS CLI, granted, tenv (terraform/tofu/terragrunt), tflint, terraform-docs, infracost, steampipe, ansible |
-| Network | mtr (`mtrr` report alias), trippy (`trip`), gping, fping, hping3, scamper, iperf3; dig, doggo, whois, ipcalc, grepcidr, mapcidr, asn, bgpq4, monocle, globalping; nmap, RustScan, arp-scan, lldpd; tcpdump, tshark, termshark, ngrep, tcpflow, rustnet, eBPF (pwru, bpftrace, BCC); xh, oha; gnmic, SuzieQ, TTP + ntc-templates; autossh, sshs, termscp |
+| Network | mtr (`mtrr` report alias), trippy (`trip`), gping, fping, hping3, scamper, iperf3; dig, doggo, whois, ipcalc, grepcidr, mapcidr, asn, bgpq4, monocle, globalping; nmap, RustScan, arp-scan, lldpd; tcpdump, tshark, termshark, ngrep, tcpflow, rustnet, eBPF (pwru, bpftrace, BCC); xh, oha; gnmic, SuzieQ, TTP + ntc-templates; autossh (`tun`), sshs, termscp |
 | Notes and AI | Joplin (terminal app; desktop app on Linux desktops and Windows), Claude Code, Codex, OpenCode |
 | Linux desktop | Nerd Fonts, kitty, VS Code, Spotify, Joplin, Beeper (after checking the machine for software that could read your chats), Japanese input (Mozc), screen recording |
 | Hyprland (opt-in) | the Hyprland desktop setup, hyprbars, hyprfocus, Hyprspace, wayle, hyprshell, kanshi |

@@ -49,6 +49,8 @@ Everything for Linux/WSL is in `linux/`, everything for Windows in `windows/`. T
 | `tests/lint.sh`, `tests/run.sh`, `tests/lib.sh`, `tests/scenarios/` | checks and installer tests (Docker containers); see [development](development.md#checks) |
 | `.githooks/pre-commit` | privacy check before each commit (secrets, emails, your own patterns); see [development](development.md#privacy-check-before-commits) |
 | `.github/workflows/checks.yml` | CI: lint, gitleaks, the installer scenarios on Ubuntu 24.04 and 26.04, the Windows tests |
+| `linux/ssh/dotfiles.conf`, `linux/ssh/dotfiles-mux.conf` | shared SSH defaults, copied (mode 600) to `~/.ssh/` and included at the end of `~/.ssh/config`: keepalives for every host; connection reuse for hosts tagged `mux` (OpenSSH 9.4+ only). See [install: SSH](install.md#ssh) |
+| `linux/ssh/tun` | `~/.local/bin/tun`: an SSH tunnel that rebuilds itself (autossh) |
 | `windows/install.ps1` | Windows bootstrap: apps, YASB, WSL, then the Linux installer inside WSL |
 | `linux/monitoring-check`, `windows/monitoring-check.ps1` | read-only check run before installing a `private:` app (Beeper): prints the software found that can read this machine's files (endpoint security, DLP, file-query and forensics agents) or record its screen (activity monitoring). Nothing for network-only tools or device management: end-to-end encryption covers those, and what they deploy shows up once installed |
 | `docs/` | these docs, `media/` (README recordings and screenshots, from a demo container), and `logo-v2.svg` (the README logo; renamed so browsers drop the old cached one) |

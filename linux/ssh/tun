@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# tun <host> <forwards> [ssh options]: an SSH tunnel that rebuilds itself (autossh), with no shell. Ctrl-C stops it.
+#   tun bastion -D 1080                    SOCKS proxy through the bastion on localhost:1080
+#   tun db-jump -L 5432:db.internal:5432   local port 5432 -> the database behind the jump host
+#   tun lab -R 8080:localhost:3000         the remote side reaches your local port 3000
+# Keepalives notice a dead link within ~90s, then autossh reconnects. It stops if the first connection fails within
+# 30s (a wrong host or a refused login: no retry loop that could lock an account), and at once if a port is taken
+# (ssh only counts it taken when no address can bind it: `-L 127.0.0.1:5432:...` to pin IPv4).
+# Linked to ~/.local/bin/tun by the installer; completes like ssh (zshrc).
+set -euo pipefail
+if (($# < 2)) || [[ $1 == -h || $1 == --help ]]; then
+  sed -n '2,5s/^# \{0,1\}//p' "$0" >&2; exit 2
+fi
+command -v autossh >/dev/null || { echo "tun: autossh isn't installed (packages.yaml installs it)" >&2; exit 1; }
+# its own connection, never a shared one (hosts tagged mux): autossh can only watch and restart a plain ssh
+exec autossh -M 0 -N \
+  -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o ExitOnForwardFailure=yes \
+  -o ControlMaster=no -o ControlPath=none \
+  "$@"

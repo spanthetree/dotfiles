@@ -640,7 +640,7 @@ linux:
     uninstall: ~/.local/bin/uv tool uninstall ttp
 
   # --- remote access
-  - autossh                    # ssh that reconnects by itself: tunnels and port forwards (-L/-R/-D) through flaky links or bastions
+  - autossh                    # ssh that reconnects by itself, for `tun` (linux/ssh/tun): tunnels that rebuild themselves
 
   - name: sshs                 # pick a host from ~/.ssh/config; SynthWave colours via the alias in linux/zsh/zsh_aliases
     github: quantumsheep/sshs

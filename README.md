@@ -33,7 +33,7 @@ New machine, options, and how to uninstall: see [install](docs/install.md).
 
 | Doc | Covers |
 |---|---|
-| [Install](docs/install.md) | Linux/WSL and new-Windows-machine installs, options, the Hyprland and COSMIC desktops, uninstall, per-machine files, VS Code |
+| [Install](docs/install.md) | Linux/WSL and new-Windows-machine installs, options, the Hyprland and COSMIC desktops, SSH defaults and `tun`, uninstall, per-machine files, VS Code |
 | [Hotkeys](docs/hotkeys.md) | keys this repo adds (byobu, zsh, vim, YASB, Hyprland, COSMIC), then each app's defaults (byobu, zsh, fzf, vim, Windows Terminal, TUI tools, AI CLIs, Windows apps) |
 | [Software](docs/software.md) | everything installed, with links |
 | [Packages](docs/packages.md) | `packages.yaml`: adding, removing, updating, what's included |

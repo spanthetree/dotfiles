@@ -194,6 +194,7 @@ LINKS=(
   linux/hyprshell/config.toml         .config/hyprshell/config.toml
   linux/hyprshell/styles.css          .config/hyprshell/styles.css
   linux/wallust/SynthWave-84.json     .config/wallust/colorschemes/SynthWave-84.json
+  linux/ssh/tun                       .local/bin/tun
 )
 unlink_ours() {  # unlink_ours <path>: remove it if it's a link into this repo
   [[ -L $1 && $(readlink "$1") == "$DOT/"* ]] || return 0
@@ -210,6 +211,10 @@ link_skip() {  # link_skip <link under $HOME>: why this machine doesn't get it (
           $d == .local/bin/dotfiles-record ]] && ! have cosmic-session; then echo cosmic
   fi
   return 0
+}
+ssh_has_tags() {  # OpenSSH 9.4+ (Tag, Match tagged): older ones reject the whole config over it
+  local v; v=$(ssh -V 2>&1 | sed -n 's/^OpenSSH_\([0-9]*\)\.\([0-9]*\).*/\1 \2/p')
+  [[ -n $v ]] && (( ${v% *} > 9 || (${v% *} == 9 && ${v#* } >= 4) ))
 }
 link_configs() {
   local i
@@ -318,6 +323,49 @@ configure_git() {
   git config --global --get-all include.path 2>/dev/null | grep -qxF "$DOT/linux/git/delta.gitconfig" && return 0
   git config --global --add include.path "$DOT/linux/git/delta.gitconfig"
   log "git: delta pager"
+}
+
+# ~/.ssh/config: the repo's shared defaults (linux/ssh: keepalives; connection reuse for hosts tagged `mux`) included at
+# its END, after `Match all` so they apply whatever block the file ends in. ssh keeps the first value it finds for each
+# setting, so your own settings, above, win. A missing file in Include is skipped (dotfiles-mux.conf on old OpenSSH).
+# The two files are COPIED to ~/.ssh with mode 600, not linked: ssh rejects a config file others can write ("Bad owner
+# or permissions") and then refuses every connection, and the repo's files are group-writable under Ubuntu's umask 002.
+SSH_CONF="$HOME/.ssh/config"
+SSH_MARK="# dotfiles: shared defaults from linux/ssh, last so your settings above win (install.cmd --uninstall removes this)"
+SSH_LINES=("Match all" "Include ~/.ssh/dotfiles.conf ~/.ssh/dotfiles-mux.conf")
+ssh_copy_ok() {  # ssh_copy_ok <name>: ~/.ssh/<name> is the repo's linux/ssh/<name>, mode 600
+  [[ -f $HOME/.ssh/$1 && ! -L $HOME/.ssh/$1 && $(stat -c %a "$HOME/.ssh/$1") == 600 ]] &&
+    cmp -s "$DOT/linux/ssh/$1" "$HOME/.ssh/$1"
+}
+ssh_wanted() {  # the copies this machine gets: the reuse one only on OpenSSH 9.4+
+  echo dotfiles.conf; if ssh_has_tags; then echo dotfiles-mux.conf; fi
+}
+configure_ssh() {
+  have ssh || return 0
+  [[ -d $HOME/.ssh ]] || mkdir -m 700 "$HOME/.ssh"
+  local f changed=0
+  for f in $(ssh_wanted); do
+    ssh_copy_ok "$f" && continue
+    command rm -f "$HOME/.ssh/$f"; install -m 600 "$DOT/linux/ssh/$f" "$HOME/.ssh/$f"; changed=1
+  done
+  if ! ssh_has_tags && [[ -e $HOME/.ssh/dotfiles-mux.conf ]]; then command rm -f "$HOME/.ssh/dotfiles-mux.conf"; fi
+  if ! grep -qxF "$SSH_MARK" "$SSH_CONF" 2>/dev/null; then
+    local new=0; [[ -e $SSH_CONF ]] || new=1
+    { [[ -s $SSH_CONF ]] && printf '\n'; printf '%s\n' "$SSH_MARK" "${SSH_LINES[@]}"; } >>"$SSH_CONF"
+    (( new )) && chmod 600 "$SSH_CONF"
+    changed=1
+  fi
+  (( changed )) && log "ssh: keepalives for every host; connection reuse for hosts you tag (Tag mux); tun for tunnels"
+  return 0
+}
+uninstall_ssh() {
+  local f; for f in dotfiles.conf dotfiles-mux.conf; do command rm -f "$HOME/.ssh/$f"; done
+  grep -qxF "$SSH_MARK" "$SSH_CONF" 2>/dev/null || return 0
+  local rest  # everything but our three lines (the mark and the two after it)
+  rest=$(awk -v m="$SSH_MARK" 'skip > 0 { skip--; next } $0 == m { skip = 2; next } { print }' "$SSH_CONF")
+  if [[ -z ${rest//[[:space:]]/} ]]; then command rm -f "$SSH_CONF"  # only ours was in it
+  else printf '%s\n' "$rest" >| "$SSH_CONF"; fi
+  log "ssh: shared defaults removed from ~/.ssh/config"
 }
 
 # trippy's map and locations: MaxMind's free GeoLite2 City database, fetched and kept fresh by geoipupdate (it only
@@ -923,6 +971,7 @@ uninstall_system() {
   local kc; for kc in "${KITTY_CONFS[@]}"; do
     if unkitty "$kc" "$KITTY_INCLUDE" "$KITTY_OLD_INCLUDE" "$KITTY_HYPR_INCLUDE"; then log "kitty: include removed from ${kc/#$HOME/\~}"; fi
   done
+  uninstall_ssh
   uninstall_geoip
   uninstall_suzieq
   uninstall_hyprland
@@ -995,6 +1044,13 @@ check_links() {
     else drift "links: ~/$d is missing (-> ${LINKS[i]})"; fi
   done
 }
+check_ssh() {
+  have ssh || return 0
+  grep -qxF "$SSH_MARK" "$SSH_CONF" 2>/dev/null || drift "ssh: ~/.ssh/config doesn't include the shared defaults (a re-run adds them)"
+  local f; for f in $(ssh_wanted); do
+    ssh_copy_ok "$f" || drift "ssh: ~/.ssh/$f differs from linux/ssh/$f, or isn't mode 600 (a re-run copies it)"
+  done
+}
 check_cosmic() {
   have cosmic-session || return 0
   local i f s v
@@ -1023,7 +1079,7 @@ check() {
     /usr/bin/python3 -I "$DOT/linux/packages.py" linux --check || DRIFT=1
     if is_wsl && have winget.exe; then /usr/bin/python3 -I "$DOT/linux/packages.py" windows --check || DRIFT=1; fi
   else warn "packages: not on apt or no python3-yaml; not checked"; fi
-  section settings; check_git; check_cosmic
+  section settings; check_git; check_ssh; check_cosmic
   printf '\n'
   if (( DRIFT )); then warn "differs from the repo: a re-run of install.cmd fixes most of it"; return 1; fi
   log "matches the repo"
@@ -1043,6 +1099,7 @@ patch_windows_terminal
 configure_wsl
 configure_yasb
 configure_git
+configure_ssh
 configure_geoip
 configure_suzieq
 configure_kitty

@@ -11,7 +11,7 @@ Current version: `git -C ~/dotfiles describe --tags`
 CI runs all of these on every push and pull request ([`.github/workflows/checks.yml`](../.github/workflows/checks.yml)).
 
 - `tests/lint.sh`: the quick ones, in seconds: syntax of every script, shellcheck, `packages.yaml`, the Windows Terminal merge test, PowerShell parsing (with `pwsh`).
-- `tests/run.sh`: the installer scenarios in [`tests/scenarios`](../tests/scenarios), each in a fresh `ubuntu:24.04` and `ubuntu:26.04` container (Docker). `tests/run.sh hook` runs one; `-i ubuntu:26.04` one image; `-v` shows everything. Covered: the package lifecycle (apt, GitHub, script, tools, `--check`, removal, `--purge`), the apt removal rules and `apt-deps`, `private:` apps, record migrations, the whole installer (links, backups, `--check`, `--uninstall`), and the pre-commit hook. A new installer feature gets a scenario: see [`tests/lib.sh`](../tests/lib.sh) for the helpers.
+- `tests/run.sh`: the installer scenarios in [`tests/scenarios`](../tests/scenarios), each in a fresh `ubuntu:24.04` and `ubuntu:26.04` container (Docker). `tests/run.sh hook` runs one; `-i ubuntu:26.04` one image; `-v` shows everything. Covered: the package lifecycle (apt, GitHub, script, tools, `--check`, removal, `--purge`), the apt removal rules and `apt-deps`, `private:` apps, record migrations, the whole installer (links, backups, `--check`, `--uninstall`), the SSH defaults and `tun` (against a real sshd), and the pre-commit hook. A new installer feature gets a scenario: see [`tests/lib.sh`](../tests/lib.sh) for the helpers.
 - Windows installer helpers: `powershell -ExecutionPolicy Bypass -File windows\test_install.ps1`.
 - Secrets: CI runs gitleaks over the whole history.
 

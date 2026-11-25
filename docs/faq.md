@@ -45,6 +45,12 @@ Before installing it, the installer looks for software that can read the machine
 **My commit was stopped by a "privacy check".**
 This repo is public, so its pre-commit hook stops commits that add secrets, email addresses, or anything matching your own patterns in `~/.config/dotfiles/private-patterns`. Fix the lines it shows; if they're fine, `git commit --no-verify`. See [development](development.md#privacy-check-before-commits).
 
+**How do I keep an SSH tunnel up?**
+`tun bastion -D 1080` (or `-L` / `-R`, as with ssh). It reconnects by itself after a dropped link; Ctrl-C stops it. See [install: SSH](install.md#ssh).
+
+**My SSH session froze when the network dropped.**
+The shared SSH settings end a dead connection within about 90 seconds, instead of leaving it frozen. For a long-lived session, run byobu on the far end and reattach.
+
 **Where do my own settings and secrets go?**
 `~/.zshrc.local` for machine-only settings, `~/.zsh_secrets.gpg` for tokens. Neither is committed. See [install](install.md#per-machine-files-never-committed).
 
