@@ -33,6 +33,25 @@ step "a re-run fixes it"
 ./install.cmd --no-fx </dev/null
 ok "matches again" ./install.cmd --check --no-fx
 
+step "pyenv, rbenv and old Go leftovers: byobu's server and zsh drop them once the dirs are gone"
+apt-get install -y -qq tmux zsh >/dev/null 2>&1
+mkdir -p ~/.rbenv   # rbenv kept: its settings stay
+env PYENV_ROOT=~/.pyenv PYENV_SHELL=zsh RBENV_ROOT=~/.rbenv PATH=~/.pyenv/shims:~/.rbenv/shims:/usr/local/go/bin:$PATH \
+  tmux new -d -s stale
+./install.cmd --no-fx </dev/null
+tenv=$(tmux show-environment -g)
+no "tmux: PYENV_ vars gone" grep -q '^PYENV_' <<<"$tenv"
+ok "tmux: RBENV_ROOT kept" grep -q '^RBENV_ROOT=' <<<"$tenv"
+no "tmux: pyenv and Go dropped from PATH" grep -qE '^PATH=.*(\.pyenv|/usr/local/go)' <<<"$tenv"
+ok "tmux: rbenv and the rest kept" grep -qE '^PATH=.*\.rbenv/shims.*/usr/bin' <<<"$tenv"
+tmux kill-server
+zout=$(env PYENV_SHELL=zsh PATH=~/.pyenv/shims:/usr/local/go/bin:$PATH __MISE_ORIG_PATH=~/.pyenv/bin:/usr/bin \
+  zsh -c 'echo "${PYENV_SHELL-unset} $PATH $__MISE_ORIG_PATH"')
+echo "$zout"
+ok "zsh: drops PYENV_ vars and pyenv/Go entries, also in mise's PATH" eval '! grep -qE "pyenv|local/go|^zsh" <<<"$zout"'
+ok "zsh: keeps the rest" grep -q ' /usr/bin$' <<<"$zout"
+command rm -rf ~/.rbenv
+
 step "--uninstall"
 ./install.cmd --uninstall --yes --no-fx </dev/null
 no "~/.zshrc no longer a link" test -L ~/.zshrc

@@ -4,6 +4,18 @@
 # PATH lives here: byobu tabs are non-login shells (no ~/.zprofile), and byobu itself starts from ~/.zprofile
 export GOPATH=$HOME/go
 typeset -gU cdpath fpath mailpath path
+# pyenv, rbenv and /usr/local/go gave way to mise. Once one is removed, drop what a shell started before (or byobu's
+# server) still passes down: its variables and PATH entries, also in mise's saved copy of PATH, which mise reuses
+() {
+  local d
+  for d in ~/.pyenv ~/.rbenv /usr/local/go; do
+    [[ -d $d ]] && continue
+    path=(${path:#$d/*})
+    [[ -n ${__MISE_ORIG_PATH:-} ]] && __MISE_ORIG_PATH=${(j.:.)${${(s.:.)__MISE_ORIG_PATH}:#$d/*}}
+  done
+  [[ -d ~/.pyenv ]] || unset -m 'PYENV_*'
+  [[ -d ~/.rbenv ]] || unset -m 'RBENV_*'
+}
 path=($HOME/.opencode/bin $GOPATH/bin /usr/local/{bin,sbin} $path
       $HOME/.cargo/bin $HOME/.local/bin $HOME/.krew/bin $HOME/.local/share/mise/shims)
 # (mise's shims, last: mise's go, python and ruby for scripts and editors; an interactive shell's mise activate puts

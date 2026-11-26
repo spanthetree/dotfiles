@@ -2,6 +2,11 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions: [SemVer](https://semver.org/), tagged `vX.Y.Z`.
 
+## [5.1.1] - 2026-11-26
+
+### Fixed
+- After the switch to mise removed pyenv, every prompt printed `zsh: command not found: pyenv`, and new byobu tabs still got pyenv's and rbenv's variables and `PATH` entries. byobu's server kept the environment it started with, and mise reused its saved copy of `PATH`. Once `~/.pyenv`, `~/.rbenv` or `/usr/local/go` is gone, `zshenv` now drops their leftovers from every new shell, and the installer drops them from byobu's server. Shells already open still need `exec zsh -l`.
+
 ## [5.1.0] - 2026-11-25
 
 ### Added
@@ -342,6 +347,7 @@ Existing machines: run `install.sh --packages --adopt` once (so removing a packa
 ### Added
 - Initial repo: zsh (antidote, replaces Prezto), Starship prompt and status config, byobu 4-row status bar, vim (vim-plug, replaces pathogen), Windows Terminal settings merge, `install.sh` with backup-then-link.
 
+[5.1.1]: https://github.com/spanthetree/dotfiles/compare/v5.1.0...v5.1.1
 [5.1.0]: https://github.com/spanthetree/dotfiles/compare/v5.0.1...v5.1.0
 [5.0.1]: https://github.com/spanthetree/dotfiles/compare/v5.0.0...v5.0.1
 [5.0.0]: https://github.com/spanthetree/dotfiles/compare/v4.4.0...v5.0.0

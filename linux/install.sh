@@ -57,6 +57,29 @@ fix_hypr_signature() {
   done
   unset HYPRLAND_INSTANCE_SIGNATURE
 }
+# byobu's server keeps the environment it started with, so after pyenv, rbenv or /usr/local/go are removed (mise
+# replaced them) its new tabs still get their variables and PATH entries. zshenv drops them in zsh; this fixes the
+# server itself, for everything else it starts.
+fix_tmux_env() {
+  have tmux && tmux has-session 2>/dev/null || return 0
+  local d e v p changed=0 gone=() parts=() keep=()
+  for d in "$HOME/.pyenv" "$HOME/.rbenv" /usr/local/go; do [[ -d $d ]] || gone+=("$d"); done
+  ((${#gone[@]})) || return 0
+  for v in $(tmux show-environment -g | sed -n 's/^\(\(PYENV\|RBENV\)_[A-Za-z0-9_]*\)=.*/\1/p'); do
+    [[ $v == PYENV_* && -d $HOME/.pyenv || $v == RBENV_* && -d $HOME/.rbenv ]] && continue
+    tmux set-environment -g -u "$v"; changed=1
+  done
+  if p=$(tmux show-environment -g PATH 2>/dev/null) && [[ $p == PATH=* ]]; then
+    IFS=: read -ra parts <<<"${p#PATH=}"
+    for e in "${parts[@]}"; do
+      for d in "${gone[@]}"; do [[ $e == "$d"/* ]] && continue 2; done
+      keep+=("$e")
+    done
+    if ((${#keep[@]} < ${#parts[@]})); then tmux set-environment -g PATH "$(IFS=:; echo "${keep[*]}")"; changed=1; fi
+  fi
+  ((changed)) && log "byobu: new tabs no longer get pyenv/rbenv/old Go settings (open shells: exec zsh -l)"
+  return 0
+}
 mkdir -p "$HOME/.local/bin"
 export PATH="$HOME/.local/bin:$PATH"
 fix_hypr_signature  # before anything runs hyprpm or hyprctl
@@ -1090,6 +1113,7 @@ if [[ $UNINSTALL -eq 1 ]]; then uninstall; exit 0; fi
 intro
 if [[ $PACKAGES -eq 1 ]]; then section packages; install_packages; fi
 section configs
+fix_tmux_env  # after packages: that's where pyenv, rbenv and /usr/local/go are removed
 retire_old_setup
 link_configs
 section plugins
